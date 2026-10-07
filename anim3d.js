@@ -6,13 +6,19 @@
      sparrow＝はばたきと、翼をたたむ短い滑空をくり返す波形の飛び方／swallow＝速く、はばたきと長い滑空、上下に大きく弧を描く／
      goose＝ゆっくり一定のはばたき、列になって飛ぶ／butterfly＝大きくはばたき、ふらふらと向きを変える／
      dragonfly＝すばやく直線に動いては空中で止まる（翅は速すぎて見えにくい）／carp＝体の後ろ半分を左右にくねらせて、ゆっくり泳ぐ／
-     hare＝後ろ足でそろって跳ぶ（跳躍）／warbler＝地面を小さく跳ねて、止まる／heron＝一歩ずつゆっくり歩き、止まって待つ。 */
+     hare＝後ろ足でそろって跳ぶ（跳躍）／warbler＝短く速い羽ばたきで、枝から枝へ短く飛び移る（2026-10-07 本人「うぐいすが絵から出るが飛べていない」）／heron＝一歩ずつゆっくり歩き、止まって待つ。
+   2026-10-07 本人「絵から飛び出るキャラクターは平面でなく立体に（厚みと陰のある 3D の生き物。元の絵の色と筆致を生かした質感で）」→ 切り抜きの形（アルファ）から体のふくらみを作り、
+   表と裏に厚みを持たせ、ふくらみの向きで陰をつける（元の絵の色と筆致はそのまま）。「タッチすると反応する」→ 種に合った反応（飛び上がる・跳ねる・身をひるがえす）。 */
 
-const VS = `uniform float uA, uB, uMode, uWave, uWaveK, uWaveP, uShim, uT; uniform vec2 uP0, uDir; uniform float uLen, uSide;
-varying vec2 vUv; varying float vShade;
+const VS = `uniform float uA, uB, uMode, uWave, uWaveK, uWaveP, uShim, uT, uThick; uniform vec2 uP0, uDir, uTexel; uniform float uLen, uSide; uniform sampler2D uMap;
+varying vec2 vUv; varying float vShade; varying vec3 vN;
+float H(vec2 u){ return textureLod(uMap, u, 3.5).a; }
 void main(){
   vUv = uv; vec3 p = position; vec2 q = p.xy - uP0; float al = dot(q, uDir); vec2 perp = vec2(-uDir.y, uDir.x); float s = dot(q, perp);
   vShade = 1.;
+  // 体のふくらみ：切り抜きの形の内側ほど厚く（板ではなく、厚みのある生きもの）
+  float h = H(uv), hx = H(uv + vec2(uTexel.x, 0.)) - H(uv - vec2(uTexel.x, 0.)), hy = H(uv + vec2(0., uTexel.y)) - H(uv - vec2(0., uTexel.y));
+  p.z += uThick * sqrt(max(h, 0.)); vN = normalize(vec3(-hx * 2.2, -hy * 2.2, 1.));
   if (uMode < .5) {                       // はばたき：体の軸から外の翼を、軸のまわりに回す
     float e = abs(s) - uB;
     if (e > 0. && (uSide == 0. || sign(s) == uSide)) { float a = uA; float ns = sign(s) * (uB + e * cos(a)); p.xy = uP0 + uDir * al + perp * ns; p.z += e * sin(a); vShade = .82 + .18 * cos(a); }
@@ -22,8 +28,11 @@ void main(){
   if (uShim > 0.) { float e = abs(s) - uB; if (e > 0.) p.z += uShim * sin(uT * 180. + al * 40.) * e; }
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.);
 }`;
-const FS = `uniform sampler2D uMap; uniform float uOp, uBright; varying vec2 vUv; varying float vShade;
-void main(){ vec4 c = texture2D(uMap, vUv); if (c.a < .04) discard; gl_FragColor = vec4(c.rgb * uBright * vShade, c.a * uOp); }`;
+const FS = `uniform sampler2D uMap; uniform float uOp, uBright; varying vec2 vUv; varying float vShade; varying vec3 vN;
+void main(){ vec4 c = texture2D(uMap, vUv); if (c.a < .04) discard;
+  vec3 L = normalize(vec3(-.35, .6, .72)); float lam = .55 + .55 * max(dot(normalize(vN), L), 0.); float rim = pow(1. - abs(normalize(vN).z), 2.) * .25;
+  vec3 col = c.rgb * uBright * vShade * lam + rim * .35; if (!gl_FrontFacing) col *= .62;   // 裏は暗く（厚みの陰）
+  gl_FragColor = vec4(col, c.a * uOp); }`;
 
 // life＝外に出たときの体の長さ（m・いちばん長いところ）。おおよその実物の大きさ（雀・燕は翼を広げて 20〜30 cm 台、雁は 1.3 m 以上、鯉 60 cm、野うさぎ 50 cm、鶯 15 cm、鷺 90 cm）。
 //   小さすぎて見えない蝶・蜻蛉・鶯は、見える大きさの下限（.28 m）にそろえた（README に書いた）
@@ -38,7 +47,7 @@ const STYLE = {
   dragonfly: { mode: 2, dur: 14, dart: true },
   carp:      { mode: 1, dur: 17, swim: true },
   hare:      { mode: 2, dur: 13, ground: "hop", step: 1.15, peak: .45, beat: .42 },
-  warbler:   { mode: 2, dur: 12, ground: "hop", step: .22, peak: .12, beat: .26 },
+  warbler:   { mode: 0, dur: 11, flapHz: 15, amp: .95, glide: [.28, .14], hopper: true },
   heron:     { mode: 2, dur: 19, ground: "walk", step: .38, beat: .9 },
 };
 
@@ -66,16 +75,16 @@ export function createExhibit(o) {
   }
 
   function build(a, r, f, v, big) {
-    const [iw, ih] = a.size, ar = iw / ih, maxW = big ? 1.5 : 1.25, maxH = big ? 1.8 : 1.45;
+    const [iw, ih] = a.size, ar = iw / ih, maxW = big ? 1.9 : 1.7, maxH = big ? 2.2 : 2.0;   // 2026-10-07 本人「企画展の絵をもう少し大きく」
     let w = maxW, h = w / ar; if (h > maxH) { h = maxH; w = h * ar; }
     const g = new THREE.Group();
     if (f.easel) {   // 自立の台（木の脚・真鍮の受け）
-      g.position.set(f.x, 1.78, f.z); g.rotation.y = f.th; world.add(g);
+      g.position.set(f.x, 2.02, f.z); g.rotation.y = f.th; world.add(g);
       const legM = o.darkWood || giltMat;
-      for (const sx of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(.07, 2.3, .07), legM); leg.position.set(sx * (w / 2 + .05), -.65, -.12); leg.rotation.z = sx * .05; g.add(leg); }
-      const back = new THREE.Mesh(new THREE.BoxGeometry(.06, 2.1, .06), legM); back.position.set(0, -.7, -.45); back.rotation.x = -.32; g.add(back);
+      for (const sx of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(.08, 2.6, .08), legM); leg.position.set(sx * (w / 2 + .05), -.72, -.12); leg.rotation.z = sx * .05; g.add(leg); }
+      const back = new THREE.Mesh(new THREE.BoxGeometry(.07, 2.4, .07), legM); back.position.set(0, -.8, -.5); back.rotation.x = -.32; g.add(back);
       const ledge = new THREE.Mesh(new THREE.BoxGeometry(w + .3, .06, .16), brassMat); ledge.position.set(0, -h / 2 - .1, .02); g.add(ledge);
-      if (o.poolMat) { const pool = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), o.poolMat); pool.rotation.x = -Math.PI / 2; pool.position.set(0, -1.77, .6); g.add(pool); }
+      if (o.poolMat) { const pool = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), o.poolMat); pool.rotation.x = -Math.PI / 2; pool.position.set(0, -2.01, .6); g.add(pool); }
     } else { const p = WF(f, -.62, v); g.position.set(p.x, 2.35, p.z); g.rotation.y = -f.th; world.add(g); }
     const fr = .08;
     const frame = new THREE.Mesh(new THREE.BoxGeometry(w + 2 * fr, h + 2 * fr, .07), giltMat); frame.position.z = .035; g.add(frame);
@@ -99,9 +108,11 @@ export function createExhibit(o) {
       const st = STYLE[a.style] || STYLE.sparrow;
       const mat = new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: FS, transparent: true, side: THREE.DoubleSide, depthWrite: false,
         uniforms: { uMap: { value: tex(P.f) }, uOp: { value: 0 }, uBright: { value: 1.18 }, uA: { value: 0 }, uB: { value: Math.min(bw, bh) * (a.style === "butterfly" ? .06 : .16) },
+          uThick: { value: Math.min(bw, bh) * .22 }, uTexel: { value: new THREE.Vector2(1 / 28, 1 / 28) },
           uMode: { value: st.mode }, uWave: { value: 0 }, uWaveK: { value: 5.5 }, uWaveP: { value: 0 }, uShim: { value: 0 }, uT: { value: 0 },
           uP0: { value: hd }, uDir: { value: dir }, uLen: { value: len }, uSide: { value: st.side ? (P.up ? 1 : -1) : 0 } } });
       const m = new THREE.Mesh(geo, mat); m.visible = false; m.renderOrder = 5; world.add(m);
+      m.userData = { animPart: it }; clickables.push(m);
       // 絵の中での場所（g の中の座標）
       const cx = ((x0 + x1) / 2 / iw - .5) * w, cy2 = (.5 - (y0 + y1) / 2 / ih) * h;
       // 絵の中での向き：頭の向き（画像の座標、上向きが +y）
@@ -129,6 +140,13 @@ export function createExhibit(o) {
       if (door) { pts.push(p.clone().lerp(door, .5).setY(p.y + .3), door.clone().setY(1.7)); return { kind: "curve", pts, hold: true }; }
       for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) pts.push(c.clone().addScaledVector(side, Math.sin(a) * 2.4).addScaledVector(n, -Math.cos(a) * 1.4).setY(p.y + Math.sin(a * 2) * .35));
       pts.push(p.clone().addScaledVector(n, .7), p.clone()); return { kind: "curve", pts };
+    }
+    if (st.hopper) {   // 鶯：絵の前の宙に「枝」の点を三つ置き、短い弧で飛び移る（止まるたびに少し休む）
+      if (door) { pts.push(p.clone().lerp(door, .5).setY(2.4), door.clone().setY(2.0)); return { kind: "curve", pts, hold: true }; }
+      const side = V(n.z, 0, -n.x), perch = [[1.2, .9, .3], [2.0, -1.1, -.2], [1.6, 1.4, .5], [.9, -.4, .1]];
+      let prev = p.clone().addScaledVector(n, .7);
+      for (const [f, l, dy] of perch) { const q = p.clone().addScaledVector(n, f).addScaledVector(side, l); q.y = p.y + dy; pts.push(prev.clone().lerp(q, .5).setY(Math.max(prev.y, q.y) + .45)); pts.push(q.clone(), q.clone()); prev = q; }
+      pts.push(p.clone().addScaledVector(n, .6), p.clone()); return { kind: "curve", pts };
     }
     if (st.wander || st.dart) {
       if (door) { pts.push(p.clone().lerp(door, .5).setY(2.6), door.clone().setY(2.2)); return { kind: "curve", pts, hold: true }; }
@@ -183,7 +201,8 @@ export function createExhibit(o) {
     // はばたき・泳ぎ・翅のふるえ
     if (st.flapHz) {
       const glide = st.glide && ((t % (st.glide[0] + st.glide[1])) > st.glide[0]);
-      const target = glide ? -.12 : Math.sin(t * st.flapHz * Math.PI * 2 + pt.ph) * st.amp;
+      const hz = st.flapHz * (it.react > 0 ? 1.6 : 1);
+      const target = glide && !(it.react > 0) ? -.12 : Math.sin(t * hz * Math.PI * 2 + pt.ph) * st.amp * (it.react > 0 ? 1.15 : 1);
       u.uA.value += (target - u.uA.value) * Math.min(1, dt * (glide ? 10 : 40));
       if (st.side) u.uA.value = (.5 + .5 * Math.sin(t * st.flapHz * Math.PI * 2)) * st.amp;
     }
@@ -251,6 +270,14 @@ export function createExhibit(o) {
         if (pt.hold) { holding = true; allDone = false; hover(pt, dt, T); continue; }
         tickPart(it, pt, dt, T); if (!pt.done) allDone = false;
       }
+      if (it.react > 0) {   // さわったときの反応（種に合わせて）：鳥と虫は飛び上がる、地面のものは跳ねる、魚は身をひるがえす
+        it.react = Math.max(0, it.react - dt); const k = Math.sin(Math.PI * (1 - it.react / .9));
+        for (const pt of it.parts) if (pt.m.visible) {
+          if (pt.st.swim) pt.mat.uniforms.uWave.value = pt.bh * (.07 + .12 * k);
+          else pt.m.position.y += (pt.st.ground ? .45 : .7) * k;
+          if (pt.st.ground) pt.m.rotateZ(.25 * k * (pt.fimg.x >= 0 ? 1 : -1));
+        }
+      }
       if (holding && it.release) { it.release = false; for (const pt of it.parts) if (pt.hold) { pt.hold = false; returnFromDoor(it, pt); } }
       if (allDone && it.state !== "rest") { it.state = "rest"; it.next = 25 + Math.random() * 35; for (const pt of it.parts) { pt.m.visible = false; } onLanded?.(it); }
     }
@@ -270,6 +297,7 @@ export function createExhibit(o) {
   // 案内：生きものが扉まで行って待つ。見る人が着いたら release() で絵へもどる
   function guide(it) { if (it.state !== "rest") return false; it.arrived = false; return start(it, "guide"); }
   function release(it) { it.release = true; it.arrived = true; }
+  function react(it) { if (it.state === "rest") return false; it.react = .9; return true; }
   function abort(it) { for (const pt of it.parts) { pt.m.visible = false; pt.done = true; pt.hold = false; } it.state = "rest"; it.release = false; }
-  return { items, tick, start, guide, release, abort, find: id => items.find(i => i.a.id === id) };
+  return { items, tick, start, guide, release, abort, react, find: id => items.find(i => i.a.id === id) };
 }

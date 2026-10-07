@@ -33,7 +33,7 @@ export function buildLibrary(ctx) {
   const fl = new THREE.Mesh(new THREE.PlaneGeometry(2 * LIB.X, 2 * LIB.Z), fm);
   { const uv = fl.geometry.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * 2 * LIB.X / 2.2, uv.getY(k) * 2 * LIB.Z / 2.2); }
   fl.rotation.x = -Math.PI / 2; fl.position.set(0, Y, 0); world.add(fl); floors.push(fl);
-  const rug = new THREE.Mesh(new THREE.PlaneGeometry(6, 9), new THREE.MeshStandardMaterial({ map: TX.runner("#5a1c16", "#c9a45c"), roughness: .95 }));
+  const rug = new THREE.Mesh(new THREE.PlaneGeometry(6, 9), new THREE.MeshStandardMaterial({ map: TX.runner("#5a1c16", "#c9a45c"), roughness: .95, ...(mats.carpetNor ? { normalMap: (n => (n.repeat.set(10, 15), n))(mats.carpetNor.clone()), normalScale: new THREE.Vector2(.6, .6) } : {}) }));
   rug.rotation.x = -Math.PI / 2; rug.position.set(0, Y + .005, 1.2); world.add(rug);
   const wallM = new THREE.MeshStandardMaterial({ color: 0x2e3a2c, roughness: .9 });
   for (const s of [-1, 1]) {
@@ -115,7 +115,7 @@ export function buildLibrary(ctx) {
   rooms.forEach((r, i) => {
     const row = i < 4 ? 0 : 1, c = i % 4, x = (c - 1.5) * 1.1, y = row ? .78 : 1.62;
     const shelf = new THREE.Mesh(new THREE.BoxGeometry(1.1, .04, .3), mats.brassMat); shelf.position.copy(V(x, y - .33, DISP.z + DISP.d / 2 + .1)); world.add(shelf);
-    const cover = new THREE.Mesh(new THREE.BoxGeometry(.5, .66, .06), [mats.paperEdge, mats.paperEdge, mats.paperEdge, mats.paperEdge, new THREE.MeshStandardMaterial({ map: coverTex(THREE, { name: r.name, desc: r.desc, acc: r.acc, motif: r.slug }, NAMES, MINCHO, GOTH), roughness: .6, envMapIntensity: .4, emissive: 0xffffff, emissiveIntensity: .12 }), mats.paperEdge]);
+    const cover = new THREE.Mesh(new THREE.BoxGeometry(.5, .66, .085), [mats.paperEdge, mats.paperEdge, mats.paperEdge, mats.paperEdge, new THREE.MeshStandardMaterial({ map: coverTex(THREE, { name: r.name, desc: r.desc, acc: r.acc, motif: r.slug }, NAMES, MINCHO, GOTH), roughness: .6, envMapIntensity: .4, emissive: 0xffffff, emissiveIntensity: .12 }), mats.paperEdge]);
     cover.material[4].emissiveMap = cover.material[4].map;
     cover.position.copy(V(x, y, DISP.z + DISP.d / 2 + .1)); cover.rotation.x = -.12; world.add(cover);
     const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), mats.poolMat); pool.position.copy(V(x, y + .1, DISP.z + DISP.d / 2 + .02)); world.add(pool);
@@ -133,7 +133,7 @@ export function buildLibrary(ctx) {
     extra.forEach((b, k) => {
       const i = rooms.length + k, z = DISP2.z + (k - (extra.length - 1) / 2) * .62, y = 1.42;
       const mat = new THREE.MeshStandardMaterial({ map: coverTex(THREE, b, NAMES, MINCHO, GOTH), roughness: .6, envMapIntensity: .4, emissive: 0xffffff, emissiveIntensity: .12 }); mat.emissiveMap = mat.map;
-      const cover = new THREE.Mesh(new THREE.BoxGeometry(.5, .66, .06), [mats.paperEdge, mats.paperEdge, mats.paperEdge, mats.paperEdge, mat, mats.paperEdge]);
+      const cover = new THREE.Mesh(new THREE.BoxGeometry(.5, .66, .085), [mats.paperEdge, mats.paperEdge, mats.paperEdge, mats.paperEdge, mat, mats.paperEdge]);
       cover.position.copy(V(DISP2.x, y, z)); cover.rotation.set(0, -Math.PI / 2, 0); cover.rotateX(-.35); world.add(cover);
       cover.userData = { book: i }; clickables.push(cover);
       featured.push({ i, mesh: cover, base: cover.position.clone(), stand: new THREE.Vector3(DISP2.x - 2.0, 0, z), look: new THREE.Vector3(DISP2.x, 0, z), side: true });
@@ -164,16 +164,39 @@ const MOTIF = {
   taiyo: g => { g.beginPath(); g.arc(0, 0, 32, 0, 7); g.stroke(); for (let a = 0; a < 12; a++) { g.save(); g.rotate(a * Math.PI / 6); g.beginPath(); g.moveTo(0, -44); g.lineTo(0, -68); g.stroke(); g.restore(); } },
 };
 function shade(hex, k) { const n = parseInt(hex.slice(1), 16); const r = (n >> 16) * k, g = ((n >> 8) & 255) * k, b = (n & 255) * k; return `rgb(${r | 0},${g | 0},${b | 0})`; }
+// 表紙：布張り（織り目）・箔押しの二重枠と題・四隅の金具・帯（2026-10-07 本人「本の表紙・外装をより高級感のあるデザインに」）
 function coverTex(THREE, r, N, MINCHO, GOTH) {
-  const c = document.createElement("canvas"); c.width = 384; c.height = 512; const g = c.getContext("2d");
-  g.fillStyle = shade(r.acc, .42); g.fillRect(0, 0, 384, 512);
-  for (let y = 0; y < 512; y += 3) { g.fillStyle = `rgba(255,255,255,${.015 + (y % 9 ? 0 : .02)})`; g.fillRect(0, y, 384, 1); }
-  g.strokeStyle = "#d9bd7a"; g.lineWidth = 4; g.strokeRect(18, 18, 348, 476); g.lineWidth = 1.5; g.strokeRect(28, 28, 328, 456);
-  g.fillStyle = "#f0dca6"; g.textAlign = "center"; g.textBaseline = "middle";
-  { let z = 52; g.font = `600 ${z}px ${MINCHO}`; while (g.measureText(r.name).width > 320 && z > 24) { z -= 2; g.font = `600 ${z}px ${MINCHO}`; } } g.fillText(r.name, 192, 108);
-  g.font = `20px ${GOTH}`; g.fillStyle = "#e8d6a8"; { let z = 20; while (g.measureText(r.desc).width > 320 && z > 12) { z--; g.font = `${z}px ${GOTH}`; } } g.fillText(r.desc, 192, 160);
-  g.save(); g.translate(192, 290); g.strokeStyle = "#e7cf93"; g.lineWidth = 4; g.lineCap = "round"; (MOTIF[r.motif] || MOTIF.tsuchi)(g); g.restore();
-  g.font = `18px ${GOTH}`; g.fillStyle = "#d9bd7a"; g.fillText(["kanten", "ehon", "rakugo"].includes(r.motif) ? N.library : `${N.series}　${N.library}`, 192, 452);
+  const W = 512, H = 683, c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+  const base = shade(r.acc, .38);
+  g.fillStyle = base; g.fillRect(0, 0, W, H);
+  // 布の織り目（縦糸と横糸）と、わずかな斑
+  for (let y = 0; y < H; y += 2) { g.fillStyle = `rgba(255,255,255,${y % 4 ? .025 : .05})`; g.fillRect(0, y, W, 1); }
+  for (let x = 0; x < W; x += 2) { g.fillStyle = `rgba(0,0,0,${x % 4 ? .03 : .06})`; g.fillRect(x, 0, 1, H); }
+  const gr = g.createRadialGradient(W * .4, H * .35, 40, W / 2, H / 2, W * .9); gr.addColorStop(0, "rgba(255,255,255,.08)"); gr.addColorStop(1, "rgba(0,0,0,.35)"); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  // 背の溝（左）
+  g.fillStyle = "rgba(0,0,0,.28)"; g.fillRect(30, 0, 6, H); g.fillStyle = "rgba(255,255,255,.06)"; g.fillRect(36, 0, 3, H);
+  // 箔押し（金の二重枠と、角の唐草）
+  const gold = g.createLinearGradient(0, 0, W, H); gold.addColorStop(0, "#f6e3a8"); gold.addColorStop(.45, "#c99a42"); gold.addColorStop(.55, "#f1d68f"); gold.addColorStop(1, "#a97a2c");
+  g.strokeStyle = gold; g.lineWidth = 5; g.strokeRect(62, 30, W - 92, H - 60); g.lineWidth = 1.6; g.strokeRect(74, 42, W - 116, H - 84);
+  for (const [x, y, sx, sy] of [[74, 42, 1, 1], [W - 42, 42, -1, 1], [74, H - 42, 1, -1], [W - 42, H - 42, -1, -1]]) {
+    g.save(); g.translate(x, y); g.scale(sx, sy); g.lineWidth = 2; g.beginPath(); g.moveTo(0, 36); g.quadraticCurveTo(4, 4, 36, 0); g.moveTo(10, 30); g.quadraticCurveTo(14, 14, 30, 10); g.stroke(); g.restore();
+  }
+  // 題（箔押しの金・明朝）
+  g.textAlign = "center"; g.textBaseline = "middle"; const cx = (W + 32) / 2;
+  g.shadowColor = "rgba(0,0,0,.55)"; g.shadowBlur = 3; g.shadowOffsetY = 2;
+  g.fillStyle = gold; { let z = 70; g.font = `600 ${z}px ${MINCHO}`; while (g.measureText(r.name).width > W - 150 && z > 28) { z -= 2; g.font = `600 ${z}px ${MINCHO}`; } } g.fillText(r.name, cx, 150);
+  g.shadowBlur = 0; g.shadowOffsetY = 0;
+  g.fillStyle = "#e8d6a8"; { let z = 22; g.font = `${z}px ${MINCHO}`; while (g.measureText(r.desc).width > W - 160 && z > 13) { z--; g.font = `${z}px ${MINCHO}`; } } g.fillText(r.desc, cx, 214);
+  g.save(); g.translate(cx, 360); g.scale(1.25, 1.25); g.strokeStyle = gold; g.lineWidth = 3.2; g.lineCap = "round"; (MOTIF[r.motif] || MOTIF.tsuchi)(g); g.restore();
+  // 帯（下）：生成り地に連作の名
+  g.fillStyle = "#efe4c8"; g.fillRect(36, H - 170, W - 36, 96); g.fillStyle = "rgba(0,0,0,.18)"; g.fillRect(36, H - 170, W - 36, 3);
+  g.fillStyle = shade(r.acc, .55); g.font = `600 26px ${MINCHO}`; g.fillText(["kanten", "ehon", "rakugo"].includes(r.motif) ? N.library : N.series, cx, H - 134);
+  g.fillStyle = "#5a4a34"; g.font = `16px ${GOTH}`; g.fillText(`${N.museum}　${N.library} 蔵`, cx, H - 100);
+  // 角の金具（四隅の三角）
+  for (const [x, y, sx, sy] of [[W, 0, -1, 1], [W, H, -1, -1], [36, 0, 1, 1], [36, H, 1, -1]]) {
+    g.save(); g.translate(x, y); g.scale(sx, sy); const m = g.createLinearGradient(0, 0, 40, 40); m.addColorStop(0, "#f2d892"); m.addColorStop(1, "#8a6424");
+    g.fillStyle = m; g.beginPath(); g.moveTo(0, 0); g.lineTo(44, 0); g.lineTo(0, 44); g.closePath(); g.fill(); g.fillStyle = "rgba(0,0,0,.25)"; g.beginPath(); g.arc(12, 12, 3, 0, 7); g.fill(); g.restore();
+  }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 
@@ -189,7 +212,7 @@ export function createReader({ rooms, T, NAMES, PAGES, openZoom, onSpread, onClo
   const keiOf = (r, id) => r.kei.find(k => k.id === id);
   function leftHTML(S) {
     const b = st.b, r = b.r, L = S.L;
-    if (L.t === "cover") return `<div class="cover" style="background:linear-gradient(160deg,${b.acc}cc,#2a1c10 70%)"><div class="kick" style="color:#f3e2b3">${esc(b.kind === "hyakkei" ? NAMES.series : NAMES.library)}</div><h1>${esc(b.name)}</h1><div class="orn"></div><p>${esc(b.desc)}</p><p style="font-size:15px;opacity:.8">${esc(NAMES.library)} 蔵</p></div>`;
+    if (L.t === "cover") return `<div class="cover lux" style="--acc:${b.acc}"><div class="kick" style="color:#f3e2b3">${esc(b.kind === "hyakkei" ? NAMES.series : NAMES.library)}</div><h1>${esc(b.name)}</h1><div class="orn"></div><p>${esc(b.desc)}</p><p style="font-size:15px;opacity:.8">${esc(NAMES.library)} 蔵</p></div>`;
     if (L.t === "blank") return `<div class="endp" aria-hidden="true"></div>`;
     if (L.t === "type") return `<div class="pin fig typo"><div class="big" style="--c:${b.acc}">${esc(L.text)}</div><div class="yomi">${esc(L.sub || "")}</div></div>`;
     if (L.t === "mark") { const it = b.groups[L.g].items[L.i]; return `<div class="pin fig typo"><div class="mk">${it.mark}</div><div class="big sm" style="--c:${b.acc}">${esc(it.text)}</div><div class="yomi">${esc(it.yomi)}</div><div class="yomi">${esc(it.region)}・${esc(it.lang)}　／　しるし：${esc(it.verdict)}</div></div>`; }
@@ -227,7 +250,8 @@ export function createReader({ rooms, T, NAMES, PAGES, openZoom, onSpread, onClo
     const tot = st.sp.length;
     $("rdPos").textContent = `${st.s + 1} / ${tot}`;
     $("rdPrev").disabled = st.s <= 0; $("rdNext").disabled = st.s >= tot - 1;
-    $("rdAoi").textContent = st.aloud ? `${NAMES.guide}の声：入` : `${NAMES.guide}の声：切`; $("rdAoi").setAttribute("aria-pressed", String(st.aloud));
+    $("curlPrev").hidden = st.s <= 0; $("curlNext").hidden = st.s >= tot - 1;
+    $("rdAoi").textContent = st.aloud ? `${NAMES.guide}が読む：オン` : `${NAMES.guide}が読む：オフ`; $("rdAoi").setAttribute("aria-pressed", String(st.aloud));
     const nx = st.sp[st.s + 1]; if (nx?.L.wi != null && st.b.r) { const w = keiOf(st.b.r, nx.L.k)?.works[nx.L.wi]; if (w?.f) { const im = new Image(); im.src = w.f; } }
     if (speak && st.aloud) onSpread?.(st.sp[st.s].say, st.sp[st.s]);
   }
@@ -256,6 +280,13 @@ export function createReader({ rooms, T, NAMES, PAGES, openZoom, onSpread, onClo
   $("rdPrev").onclick = () => turn(-1); $("rdNext").onclick = () => turn(1); $("rdClose").onclick = close;
   $("rdToc").onclick = () => { const n = st.sp.findIndex(p => p.R.t === "toc"); jumpTo(n < 0 ? 0 : n); };
   $("rdAoi").onclick = () => { st.aloud = !st.aloud; render(st.aloud); if (!st.aloud) onSpread?.(null); };
+  // 頁の角：押すとめくる。つまんで引くと、引いたぶんだけめくれて、離すと最後までめくる
+  for (const [id, dir] of [["curlNext", 1], ["curlPrev", -1]]) {
+    const el = $(id); let x0 = null;
+    el.addEventListener("pointerdown", e => { e.stopPropagation(); x0 = e.clientX; el.classList.add("drag"); el.setPointerCapture(e.pointerId); });
+    el.addEventListener("pointermove", e => { if (x0 == null) return; const k = Math.min(1.8, 1 + Math.abs(e.clientX - x0) / 120); el.querySelector("i").style.transform = `scale(${k})`; });
+    el.addEventListener("pointerup", e => { e.stopPropagation(); x0 = null; el.classList.remove("drag"); el.querySelector("i").style.transform = ""; turn(dir); });
+  }
   // 指でめくる
   let sx = null;
   $("book").addEventListener("pointerdown", e => { if (e.target.closest("button,a,img")) return; sx = e.clientX; });

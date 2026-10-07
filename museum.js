@@ -60,7 +60,7 @@ const LIBO = (() => { const p = new THREE.Vector3(LIB_FACE.d.x * (R + LIB.Z + .5
 const libLocal = (x, z) => { const dx = x - LIBO.p.x, dz = z - LIBO.p.z, c = Math.cos(LIBO.th), s_ = Math.sin(LIBO.th); return { x: dx * c - dz * s_, z: dx * s_ + dz * c }; };
 const libWorld = v => { const c = Math.cos(LIBO.th), s_ = Math.sin(LIBO.th); return new THREE.Vector3(LIBO.p.x + v.x * c + v.z * s_, 0, LIBO.p.z - v.x * s_ + v.z * c); };
 const inLib = (x, z) => { const l = libLocal(x, z); return Math.abs(l.x) < LIB.X + .2 && l.z > -LIB.Z - .2 && l.z < LIB.Z + .55; };
-const STELE = { x: 0, z: 7.4, w: 2.9, d: .34, r: 1.9 };
+const STELE = { x: 0, z: 999, w: 0, d: 0, r: 0 };   // 入口の一枚の衝立は外した
 const WARP = { x: 0, z: 0, r: -1, keep: 0 };   // 光の輪（ワープ）は 2026-10-07 にやめた（本人「中央の図書館へのワープは不要」）
 const OBST = [];   // 円堂の中の置きもの（企画展の台など）：{x, z, r}
 const inStele = (x, z, m = .4) => Math.abs(x - STELE.x) < STELE.w / 2 + m && Math.abs(z - STELE.z) < STELE.d / 2 + m;
@@ -158,9 +158,10 @@ function tex(url, srgb = true) { const t = TL.load(url); t.wrapS = t.wrapT = THR
 // 材質
 const parquet = { map: tex("tex/floor_diff.webp"), normalMap: tex("tex/floor_nor.webp", false), roughnessMap: tex("tex/floor_rough.webp", false) };
 const T_PLASTER = TX.plaster(), T_WOOD = TX.woodPanel(), T_STONE = TX.limestone(), T_MARBLE = TX.marble(), T_LAY = TX.laylight(), T_SOOT = TX.soot(), T_SHAFT = TX.shaft();
-const stoneMat = new THREE.MeshStandardMaterial({ map: T_STONE, roughness: .85, envMapIntensity: .4 });
+// 2026-10-07 本人「床材・壁の素材感もこだわる」：石の壁に凹凸（Poly Haven「Castle Brick 02 White」の法線・CC0）、大理石の床に磨きのむら（「Marble 01」の粗さと法線・CC0）
+const stoneMat = new THREE.MeshStandardMaterial({ map: T_STONE, normalMap: tex("tex/b_nor.webp", false), normalScale: new THREE.Vector2(.45, .45), roughness: .85, envMapIntensity: .4 });
 const marbleMat = new THREE.MeshStandardMaterial({ map: T_MARBLE, roughness: .28, metalness: 0, envMapIntensity: .9 });
-const lobbyFloorMat = new THREE.MeshStandardMaterial({ map: TX.lobbyFloor(), roughness: .22, envMapIntensity: .9 });
+const lobbyFloorMat = new THREE.MeshStandardMaterial({ map: TX.lobbyFloor(), roughnessMap: tex("tex/m_rough.webp", false), normalMap: tex("tex/m_nor.webp", false), normalScale: new THREE.Vector2(.3, .3), roughness: .55, envMapIntensity: 1.0 });
 const woodMat = new THREE.MeshStandardMaterial({ map: T_WOOD, color: 0xd8c0a8, roughness: .55, envMapIntensity: .55 });
 const darkWood = new THREE.MeshStandardMaterial({ color: 0x3a2516, roughness: .5, envMapIntensity: .5 });
 const brassMat = new THREE.MeshStandardMaterial({ color: 0xc19a4b, metalness: .9, roughness: .3, envMapIntensity: 1.2 });
@@ -170,7 +171,9 @@ const sootMat = new THREE.MeshBasicMaterial({ map: T_SOOT, transparent: true, de
 const glowMat = new THREE.MeshBasicMaterial({ color: 0xfff1c8, toneMapped: false });
 const domeMat = new THREE.MeshStandardMaterial({ map: TX.coffers(), side: THREE.BackSide, roughness: .9, envMapIntensity: .3 });
 const oculusMat = new THREE.MeshBasicMaterial({ color: 0xfff6e2, toneMapped: false });
-function runnerMat(cols) { const t = TX.runner(cols[0], cols[1]); return new THREE.MeshStandardMaterial({ map: t, roughness: .95, envMapIntensity: .2 }); }
+// 絨毯の毛足（Poly Haven「Dirty Carpet」の法線だけ・CC0。2026-10-08）。部屋の通路の UV は 2.4 m で一巡 → 毛足は 0.6 m ごと
+const C_NOR = tex("tex/c_nor.webp", false); C_NOR.repeat.set(4, 4);
+function runnerMat(cols) { const t = TX.runner(cols[0], cols[1]); return new THREE.MeshStandardMaterial({ map: t, normalMap: C_NOR, normalScale: new THREE.Vector2(.6, .6), roughness: .95, envMapIntensity: .2 }); }
 // 窓の外（部屋ごとに一つの ShaderMaterial。空は見る向きで引くので、月や太陽は窓をまたいで同じ場所に見える）
 const WIN_VS = `varying vec2 vUv; varying vec3 vW; void main(){ vUv=uv; vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`;
 const WIN_FS = `uniform float uT; uniform int uM; uniform vec3 uSun; varying vec2 vUv; varying vec3 vW;
@@ -302,6 +305,20 @@ const putF = (tag, mat, geo, f, u, v, y, rotY) => { const p = WF(f, u, v); p.y =
     put("stone2", marbleMat, new THREE.BoxGeometry(1.25, .45, 1.25), new THREE.Vector3(c.x, LOBBY_H - .5, c.y));
   }
   const dome = new THREE.Mesh(new THREE.SphereGeometry(RR, 44, 14, 0, Math.PI * 2, 0, Math.PI / 2 * .94), domeMat); dome.scale.y = .42; dome.position.y = LOBBY_H; world.add(dome); ceils.push(dome);
+  // 2026-10-07 本人「広間の天井をさらにこだわる（格天井・ドーム・天窓・梁・装飾の彫り・間接光）」：
+  //   丸天井の付け根に金の蛇腹（二段の輪）と、その上の間接光の帯、柱の上から天窓へのびる十一本の肋（リブ）、肋のあいだの格間の金の花（ロゼット）
+  { const ringM = new THREE.MeshStandardMaterial({ color: 0xc9a45c, metalness: .8, roughness: .3, envMapIntensity: 1.1 });
+    for (const [rr, y, t] of [[RR - .35, LOBBY_H + .02, .16], [RR - .6, LOBBY_H + .3, .09]]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(rr, t, 8, 88), ringM); ring.rotation.x = Math.PI / 2; ring.position.y = y; world.add(ring); }
+    const cove = new THREE.Mesh(new THREE.CylinderGeometry(RR - .7, RR - .7, .22, 88, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe2b0, transparent: true, opacity: .55, side: THREE.BackSide, toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false }));
+    cove.position.y = LOBBY_H + .5; world.add(cove);
+    const ribM = new THREE.MeshStandardMaterial({ map: T_MARBLE, color: 0xe8dcc4, roughness: .35, envMapIntensity: .8 });
+    for (let k = 0; k < NF; k++) {
+      const a = faceTh(k) + HA, pts = [];
+      for (let j = 0; j <= 16; j++) { const ph = (j / 16) * Math.PI / 2 * .94, rr = (RR - .15) * Math.sin(Math.PI / 2 - ph) * .995; pts.push(new THREE.Vector3(Math.sin(a) * rr, LOBBY_H + (RR - .15) * .42 * Math.sin(ph) - .05, -Math.cos(a) * rr)); }
+      const rib = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, .14, 6, false), ribM); world.add(rib);
+      const mid = Math.PI / 2 * .5, ra = faceTh(k), rr2 = (RR - .3) * Math.sin(Math.PI / 2 - mid) * .98;
+      const ros = new THREE.Mesh(new THREE.CircleGeometry(.32, 12), ringM); ros.position.set(Math.sin(ra) * rr2, LOBBY_H + (RR - .3) * .42 * Math.sin(mid) - .12, -Math.cos(ra) * rr2); ros.lookAt(0, LOBBY_H - 4, 0); world.add(ros);
+    } }
   const ocuY = LOBBY_H + RR * .42 * Math.cos(Math.PI / 2 * .94) - .02, ocuR = RR * Math.sin(Math.PI / 2 * .06) + .4;
   const ocu = new THREE.Mesh(new THREE.CircleGeometry(ocuR, 40), oculusMat); ocu.rotation.x = Math.PI / 2; ocu.position.y = ocuY; world.add(ocu);
   // 外から見える丸屋根（緑青）と、その下の胴
@@ -454,7 +471,7 @@ for (const r of rooms) {
       g.strokeStyle = "#c9a45c"; g.lineWidth = 5; g.strokeRect(3, 3, w - 6, h - 6); g.textAlign = "center"; g.textBaseline = "middle";
       g.fillStyle = "#f3e7cf"; fit(g, z.name, w * .8, `600 %px ${MINCHO}`, Math.round(h * .5)); g.fillText(z.name, w / 2, h * .42);
       g.fillStyle = "#d8c9a8"; fit(g, `${z.sub}　${ks.length} 景`, w * .8, `%px ${GOTH}`, Math.round(h * .2)); g.fillText(`${z.sub}　${ks.length} 景`, w / 2, h * .8); }, 1024);
-    const c = W(i, u0 + .25, 0); t.position.set(c.x, 4.15, c.z); t.rotation.y = Math.PI - r.th; t.material.side = THREE.DoubleSide; world.add(t);
+    const c = W(i, u0 + .25, 0); t.position.set(c.x, 4.15, c.z); t.rotation.y = -r.th; world.add(t);   // 円堂の側から来る人に向ける
     for (const sx of [-1, 1]) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, WALL_H - 4.46, 4), brassMat); const q = W(i, u0 + .25, sx * 1.1); ch.position.set(q.x, 4.46 + (WALL_H - 4.46) / 2, q.z); world.add(ch); }
   });
 }
@@ -465,30 +482,24 @@ const FEAT = (() => {
   for (const r of rooms) for (const k of r.kei) if (k.id === "kaeru") { const w = k.works.find(x => fname(x.f) === "kaeru03.jpg"); if (w) return { r, k, w }; }
   const r = rooms[0], k = r.kei[0]; return { r, k, w: k.works.find(x => x.f) };
 })();
-const featBay = (() => {
-  const { r, k, w } = FEAT;
-  const wall = new THREE.Mesh(boxUV(STELE.w, 3.7, STELE.d, 2.4), woodMat); wall.position.set(STELE.x, 1.85, STELE.z); world.add(wall); blockers.push(wall);
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(STELE.w + .2, .14, STELE.d + .1), darkWood); cap.position.set(STELE.x, 3.75, STELE.z); world.add(cap);
-  const g = new THREE.Group(); g.position.set(STELE.x, 0, STELE.z + STELE.d / 2); world.add(g);
-  const sl = { w, x: 0, y: 1.6, mw: 1.75, mh: 1.85, big: true };
-  const bay = { k, r, g, slots: [sl], loaded: true, near: true, title: null, center: g.position.clone().setY(0), facing: 0, feat: true };
-  const ph = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.6), new THREE.MeshBasicMaterial({ color: 0x3a2a1a })); ph.position.set(0, sl.y, .012); g.add(ph); sl.ph = ph;
-  ph.userData = { bay, slot: sl }; clickables.push(ph);
-  const t = textPlane(2.7, .5, (c, W_, H) => {
-    c.textAlign = "center"; c.textBaseline = "alphabetic";
-    c.fillStyle = "#e7cf93"; c.font = `${Math.round(H * .24)}px ${GOTH}`; c.fillText("入口の一枚", W_ / 2, H * .3);
-    c.fillStyle = "#f6efdf"; fit(c, `${r.name}　${k.no || ""}　${k.name}`, W_ * .94, `600 %px ${MINCHO}`, Math.round(H * .42)); c.fillText(`${r.name}　${k.no || ""}　${k.name}`, W_ / 2, H * .82);
-  }, 1024);
-  t.position.set(0, 3.2, .015); g.add(t);
-  const back = textPlane(2.6, .9, (c, W_, H) => {
-    c.textAlign = "center"; c.textBaseline = "middle";
-    c.fillStyle = "#f6efdf"; c.font = `600 ${Math.round(H * .4)}px ${MINCHO}`; c.fillText("森羅美術館", W_ / 2, H * .38);
-    c.fillStyle = "#d8c9a8"; c.font = `${Math.round(H * .15)}px ${GOTH}`; c.fillText("Shinra Museum　・　八つの連作・八つの部屋", W_ / 2, H * .8);
-  }, 1024);
-  back.rotation.y = Math.PI; back.position.set(STELE.x, 2.2, STELE.z - STELE.d / 2 - .015); world.add(back);
-  const pool = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.2), poolMat); pool.rotation.x = -Math.PI / 2; pool.position.set(STELE.x, .008, STELE.z + 1.2); world.add(pool);
-  return bay;
-})();
+// 入口の一枚は 2026-10-07 にやめた（本人「入口の一枚（作品）は不要」）
+const featBay = null;
+
+// 鳴き声（さわったとき）：商用可（CC BY）の、その種の録音だけ。無い種は鳴かせない（素材台帳 M-0786〜0788）
+const CALLS = {
+  uguisu: { f: "snd/call_uguisu.m4a", label: "ウグイスのさえずり", who: "nnn（日本語版ウィキペディアの利用者）", lic: "CC BY 2.1 JP", licurl: "https://creativecommons.org/licenses/by/2.1/jp/", page: "https://commons.wikimedia.org/wiki/File:Uguisu5707.ogg" },
+  tsubame: { f: "snd/call_tsubame.m4a", label: "ツバメの声（北米の亜種）", who: "Justin Wasack", lic: "CC BY 3.0", licurl: "https://creativecommons.org/licenses/by/3.0/", page: "https://commons.wikimedia.org/wiki/File:BarnSwallows.ogg" },
+  sagi: { f: "snd/call_sagi.m4a", label: "ダイサギの声", who: "Stanislas Wroza", lic: "CC BY 4.0", licurl: "https://creativecommons.org/licenses/by/4.0/", page: "https://commons.wikimedia.org/wiki/File:Great_Egret_(Ardea_alba_alba)_call.ogg" },
+  suzume: { f: "snd/call_suzume.m4a", label: "スズメの群れのさえずり（フィンランドで録音）", who: "Yle Arkisto（フィンランド放送協会の音の書庫）", lic: "CC BY 4.0", licurl: "https://creativecommons.org/licenses/by/4.0/", page: "https://freesound.org/people/YleArkisto/sounds/339307/" },
+};
+CALLS.suzume2 = CALLS.suzume;   // いきもの百景の雀も同じ種（スズメ Passer montanus）
+function playCall(id, pos) {
+  const c = CALLS[id]; if (!c || !AUD.ctx || AUD.muted) return;
+  AUD.buffer(c.f).then(b => { const s = AUD.ctx.createBufferSource(), g = AUD.ctx.createGain(), pn = AUD.ctx.createPanner(); pn.panningModel = "HRTF"; pn.distanceModel = "inverse"; pn.refDistance = 2;
+    if (pos) { pn.positionX.value = pos.x; pn.positionY.value = pos.y; pn.positionZ.value = pos.z; } g.gain.value = .9; s.buffer = b; s.connect(g); g.connect(pn); pn.connect(AUD.master); s.start(); }).catch(() => {});
+}
+function syncListener() { const L = AUD.ctx?.listener; if (!L || !L.positionX) return; L.positionX.value = camera.position.x; L.positionY.value = camera.position.y; L.positionZ.value = camera.position.z;
+  const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); L.forwardX.value = f.x; L.forwardY.value = f.y; L.forwardZ.value = f.z; L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
 
 // 企画展「絵から出てくる生きもの」（2026-10-07 本人）：円堂の扉のわき（その部屋の生きもの）と、左右の壁。素材は data/anim.js（CC0／PD だけ）
 const animWork = a => { const r = rooms.find(x => x.slug === a.room), k = r?.kei.find(x => x.id === a.kei); return { r, k, w: k?.works[a.wi] }; };
@@ -524,7 +535,7 @@ function libFlush() {
   for (const { mat, geos, tag } of LB.values()) { const m = new THREE.Mesh(mergeGeometries(geos, false), mat); m.userData.tag = tag; libG.add(m); if (/wall|wood/.test(tag)) blockers.push(m); if (/ceil/.test(tag)) ceils.push(m); }
   LB.clear();
 }
-const LIBW = buildLibrary({ THREE, world: libG, put: libPut, flush: libFlush, mats: { parquet, darkWood, woodMat, brassMat, poolMat, paperEdge: new THREE.MeshStandardMaterial({ color: 0xefe4c8, roughness: .8 }) },
+const LIBW = buildLibrary({ THREE, world: libG, put: libPut, flush: libFlush, mats: { parquet, carpetNor: C_NOR, darkWood, woodMat, brassMat, poolMat, paperEdge: new THREE.MeshStandardMaterial({ color: 0xd9b45e, roughness: .35, metalness: .6 }) },
   TX, textPlane, fit, rooms, NAMES, clickables, floors, isTouch, MINCHO, GOTH });
 
 function makeBay(r, k) {
@@ -684,7 +695,7 @@ const ambOf = key => key === "library" ? M.amb.library : key === "lobby" || key 
 function setZone(z, quiet) {
   if (zone.key === z.key) return;
   const first = zone.key == null; zone.key = z.key; zone.i = z.i;
-  const A = ATMO[z.key] || ATMO.lobby; parts.want = A.part || "none";
+  const A = ATMO[z.key] || ATMO.lobby; parts.want = "none";   // 2026-10-07 本人「空間に漂う光の粒は削除」
   if (mode === "walk") AUD.zone(ambOf(z.key));
   if (quiet || first) return;
   if (!RM) { const v = $("veil"); v.classList.remove("go"); void v.offsetWidth; v.style.background = "#" + new THREE.Color(A.fog).getHexString(); v.classList.add("go"); }
@@ -1014,9 +1025,9 @@ function hover(e) {
   if (aoi?.visible && ray.intersectObject(aoi, true)[0]) { stage.style.cursor = "pointer"; return; }
   const h = ray.intersectObjects([...clickables, ...floors, ...blockers], false)[0];
   if (!h || h.distance > 40) { stage.style.cursor = ""; return; }
-  if (h.object.userData?.bay || h.object.userData?.book != null || h.object.userData?.anim) { stage.style.cursor = "pointer"; return; }
+  if (h.object.userData?.bay || h.object.userData?.book != null || h.object.userData?.anim || h.object.userData?.animPart) { stage.style.cursor = "pointer"; return; }
   stage.style.cursor = "";
-  if (floors.includes(h.object) && walkable(h.point.x, h.point.z)) { hoverRing.position.set(h.point.x, h.point.y + .012, h.point.z); hoverRing.visible = true; }
+  if (floors.includes(h.object) && walkable(h.point.x, h.point.z) && Math.hypot(h.point.x - me.pos.x, h.point.z - me.pos.z) <= STEP_MAX) { hoverRing.position.set(h.point.x, h.point.y + .012, h.point.z); hoverRing.visible = true; }
 }
 function pick(x, y) {
   rayAt(x, y);
@@ -1038,7 +1049,8 @@ function pick(x, y) {
   if (h.object.userData?.bay) { approach(h.object.userData.bay, h.object.userData.slot); return; }
   if (h.object.userData?.book != null) { approachBook(h.object.userData.book); return; }
   if (h.object.userData?.warp) { goWarp(); return; }
-  if (h.object.userData?.anim) { animTapped(h.object.userData.anim); return; }
+  if (h.object.userData?.animPart) { const it = h.object.userData.animPart; if (EX.react(it)) { playCall(it.a.id, h.point); return; } }
+  if (h.object.userData?.anim) { animTapped(h.object.userData.anim); playCall(h.object.userData.anim.a.id, h.point); return; }
   if (h.distance > 60) return;
   const p = h.point;
   if (!walkable(p.x, p.z)) { const l = local(p.x, p.z); if (l && l.u > 0 && Math.abs(l.v) > 2) { const q = W(l.i, l.u, Math.sign(l.v) * (HALF - 1.65)); if (walkable(q.x, q.z)) { p.x = q.x; p.z = q.z; } } }
@@ -1056,7 +1068,12 @@ function backStep() {
   for (const t of [1.8, 1.4, 1.0, .7]) { const x = me.pos.x + bx * t, z = me.pos.z + bz * t; if (walkable(x, z, .7)) return new THREE.Vector3(x, 0, z); }
   return null;
 }
-function walkTo(p, keepLook) { if (tour.on && !tour.susp) suspendTour(); intro.tok++; marker.position.set(p.x, groundY(p.x, p.z) + .01, p.z); marker.material.opacity = .9; goTo(p); if (keepLook) me.userLook = true; }
+// 一回の押しで歩くのは STEP_MAX m まで（2026-10-07 本人「遠くを押しすぎると遠くまで動き……一回の押しで動ける範囲を適度に制限」）。
+//   それより遠い床を押したら、その向きへ STEP_MAX m だけ。歩いているあいだも、押せば止まって向きを変えられる
+const STEP_MAX = 6;
+function walkTo(p, keepLook) {
+  const dx = p.x - me.pos.x, dz = p.z - me.pos.z, d = Math.hypot(dx, dz);
+  if (d > STEP_MAX && !keepLook) { const k = STEP_MAX / d; let q = new THREE.Vector3(me.pos.x + dx * k, 0, me.pos.z + dz * k); for (let t = 0; t < 8 && !walkable(q.x, q.z); t++) q = new THREE.Vector3((q.x + me.pos.x) / 2, 0, (q.z + me.pos.z) / 2); if (walkable(q.x, q.z)) p = q; } if (tour.on && !tour.susp) suspendTour(); intro.tok++; marker.position.set(p.x, groundY(p.x, p.z) + .01, p.z); marker.material.opacity = .9; goTo(p); if (keepLook) me.userLook = true; }
 // ---------------------------------------------------------------- ワープ（広間のまん中 ⇄ 図書館のまん中）
 const intro = { tok: 0 };
 let warping = false;
@@ -1161,7 +1178,7 @@ async function loadAoi() {
 }
 function aoiJump() {
   if (!aoi) return;
-  const s = followSpot(); A.pos = s.clone(); A.vel.set(0, 0, 0); A.yaw = Math.atan2(me.pos.x - s.x, me.pos.z - s.z); vrm.springBoneManager?.reset?.();
+  const s = followSpot(); A.pos = s.clone(); A.vel.set(0, 0, 0); A.yaw = Math.atan2(me.pos.x - s.x, me.pos.z - s.z); A.calm = 1.2; A.fade = 0;
 }
 function followSpot() {
   const reg = region(me.pos.x, me.pos.z);
@@ -1188,7 +1205,7 @@ function aoiTick(dt) {
   if (!vrm) return;
   if (mode !== "walk") { aoi.visible = false; return; }
   const goal = A.goal || followSpot();
-  if (A.pos.distanceTo(goal) > 14) { A.pos.copy(goal); A.vel.set(0, 0, 0); vrm.springBoneManager?.reset?.(); }
+  if (A.pos.distanceTo(goal) > 14) { A.pos.copy(goal); A.vel.set(0, 0, 0); A.calm = 1.2; }
   const w = A.goal ? 4.2 : 3.4, n = Math.max(1, Math.ceil(dt / .02)), h = dt / n, vmax = 2.6;
   for (let i = 0; i < n; i++) {
     A.vel.x += (w * w * (goal.x - A.pos.x) - 2 * w * A.vel.x) * h; A.vel.z += (w * w * (goal.z - A.pos.z) - 2 * w * A.vel.z) * h;
@@ -1213,6 +1230,14 @@ function aoiTick(dt) {
   const want = SP.playing ? clamp(lv * 7, 0, 1) : talking && !SP.paused ? .18 + .18 * Math.abs(Math.sin(performance.now() / 90)) : 0;
   A.mouth += (want - A.mouth) * ease(dt, 18); vrm.expressionManager?.setValue("aa", A.mouth * .8);
   vrm.update(dt);
+  // 2026-10-07 本人「碧が登場するときにワンピースが不自然に大きく揺れる」→ 現れてしばらくは、揺れものをいまの姿勢で止めておく（そのあいだに姿がゆっくり出る）
+  if (A.calm > 0) { A.calm -= dt; const sbm = vrm.springBoneManager; sbm?.setInitState?.(); sbm?.reset?.(); }
+  if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); }
+}
+let aoiMats = null;
+function aoiOpacity(o) {
+  if (!aoiMats) { aoiMats = []; aoi.traverse(m => { if (m.isMesh) for (const mt of [].concat(m.material)) { aoiMats.push([mt, mt.transparent, mt.depthWrite]); } }); }
+  for (const [mt, tr, dw] of aoiMats) { mt.transparent = o < 1 ? true : tr; mt.opacity = o; mt.depthWrite = o < 1 ? o > .6 : dw; mt.needsUpdate = true; }
 }
 // 体の動き：《Feel Hikawa》第2回の aoiPose を借り、ひじの向きだけ逆にした（_dev/check.mjs が毎回測る）
 const CUR = {};
@@ -1479,18 +1504,19 @@ $("listBtn").onclick = openList; $("menuList").onclick = openList;
 function credits() {
   const lic = {}; for (const r of rooms) for (const k of r.kei) for (const w of k.works) if (w.f) lic[w.lic] = (lic[w.lic] || 0) + 1;
   const snd = new Map(); for (const r of rooms) { for (const k of r.kei) if (k.snd) snd.set(k.snd.f, k.snd); for (const s of r.snd) snd.set(s.f, s); }
-  const amb = [["入口の広間", M.amb.lobby], ["森羅図書館", M.amb.library], ...rooms.map(r => [r.name, r.amb])].filter(x => x[1]);
+  const amb = [["入口の広間", M.amb.lobby], [NAMES.library, M.amb.library], ...rooms.map(r => [r.name, r.amb])].filter(x => x[1]);
   const ambHTML = amb.map(([where, a]) => a.kind === "bgm"
     ? `<li>${esc(where)}：音楽「${esc(a.title)}」${esc(a.who)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝モノラル化・音量・ループ）</li>`
     : `<li>${esc(where)}：録音「${esc(a.label)}」${esc(a.who)}・${esc(a.where)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a></li>`).join("");
-  return `<p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
+  return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
   図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。
   一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。<b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></p>
   <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
+  <h3>生きものの鳴き声（企画展・さわったとき）</h3><ul>${[...new Set(Object.values(CALLS))].map(c => `<li>${esc(c.label)}：${esc(c.who)}・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・音量）</li>`).join("")}</ul>
   <h3>部屋の音と音楽</h3><ul>${ambHTML}</ul>
   <p>景の音（${snd.size} 本）は mitsulab が録ったものではなく、Wikimedia Commons で公開されている他の人の野外録音です。録音者・録音地・権利は景の札に出します。</p>
   <h3>碧の声</h3><p>VOICEVOX:冥鳴ひまり（前もって声にした一文ずつ。話したことばは字幕にそのまま出します）。碧の言葉は、森羅百景の解説・作品の表・録音の台帳からだけ組んだ事実と、新しい事実を入れない雑談でできています。話したことは保存しません（端末に覚えるのは、設定と、最後に立っていた場所だけ）。</p>
-  <h3>館のつくり</h3><p>部屋の床：Poly Haven「<a href="https://polyhaven.com/a/herringbone_parquet" target="_blank" rel="noopener">Herringbone Parquet</a>」（CC0）。大理石・石・漆喰・腰板・絨毯・天窓・窓の外の景色は、この画面の中でその場で描いています。碧の 3D の姿は © mitsulab（この作品の中で表示するためだけに置いています。持ち出し・再配布はできません）。表示の道具は three.js と three-vrm（MIT）。</p>`;
+  <h3>館のつくり</h3><p>部屋の床：Poly Haven「<a href="https://polyhaven.com/a/herringbone_parquet" target="_blank" rel="noopener">Herringbone Parquet</a>」、玄関と円堂の大理石の磨きのむら：「<a href="https://polyhaven.com/a/marble_01" target="_blank" rel="noopener">Marble 01</a>」、石の壁の凹凸：「<a href="https://polyhaven.com/a/castle_brick_02_white" target="_blank" rel="noopener">Castle Brick 02 White</a>」、絨毯の毛足：「<a href="https://polyhaven.com/a/dirty_carpet" target="_blank" rel="noopener">Dirty Carpet</a>」（どれも CC0。凹凸と磨きだけを借りています）。大理石・石・漆喰・腰板・絨毯の色と文様・天窓・窓の外の景色は、この画面の中でその場で描いています。碧の 3D の姿は © mitsulab（この作品の中で表示するためだけに置いています。持ち出し・再配布はできません）。表示の道具は three.js と three-vrm（MIT）。</p>`;
 }
 $("credAll").innerHTML = credits();
 $("menuBtn").onclick = () => { closeAll(); $("menu").hidden = false; };
@@ -1545,6 +1571,8 @@ const OTO_EARLY = new URLSearchParams(location.search).get("mode") === "oto";
 function wake() {   // はじめて押したとき：音の仕組みを立て、碧がひとこと
   if (woke || mode !== "walk") return; woke = true;
   AUD.init(); AUD.zone(ambOf(zone.key)); $("guide").hidden = false; aoiJump();
+  // 2026-10-07 本人「起動時に碧が登場するのは広間の中央に」：円堂のまん中に、見る人のほうを向いて現れる
+  if (vrm) { A.pos.set(0, 0, 1.2); A.goal = new THREE.Vector3(0, 0, 1.2); A.look = null; A.yaw = Math.atan2(me.pos.x, me.pos.z - 1.2); A.calm = 1.6; A.fade = 0; setTimeout(() => { if (A.goal && A.goal.z === 1.2) A.goal = null; }, 9000); }
   if (OTO) { otoGo(0, true); return; }
   const acts = [["案内して", () => introWalk(), true], ["自分で歩く", () => { intro.tok++; freeTalk([T.idle.free]); }], ...(resumeAt && resumeOK ? [["続きから（" + rooms[region(resumeAt[0], resumeAt[1]).i].name + "）", resumeGo]] : [])];
   curActs = () => acts; talk(T.outside, acts);
@@ -1553,9 +1581,9 @@ addEventListener("pointerdown", e => { if (OTO_EARLY && e.target.closest?.("#oto
 addEventListener("keydown", e => { if (OTO_EARLY) return; if (!e.target.closest?.("input,textarea,select")) wake(); }, { capture: true });
 async function introWalk(toLibrary) {
   const tk = ++intro.tok; if (!woke) wake();
-  await goP(new THREE.Vector3(0, 0, R - 4.6), new THREE.Vector3(STELE.x, 0, STELE.z)); if (tk !== intro.tok) return;
+  await goP(new THREE.Vector3(0, 0, R - 4.6), new THREE.Vector3(0, 0, 0)); if (tk !== intro.tok) return;
   if (toLibrary) { goWarp(); return; }
-  const acts = [["部屋をえらぶ", openMap, true], [FEAT.k.id === "kaeru" ? "蛙の壺を見る" : "正面の一枚を見る", () => approach(featBay, featBay.slots[0])], [`${NAMES.library}へ`, goWarp], ["順に案内して", () => runTour(0)]];
+  const acts = [["部屋をえらぶ", openMap, true], [`${NAMES.library}へ`, goWarp], ["順に案内して", () => runTour(0)]];
   curActs = () => acts; talk(T.lobby, acts);
 }
 function goHome() {   // 玄関へもどる
@@ -1570,7 +1598,7 @@ const BOOKS_ALL = bookList(rooms);
 $("shelfBar").innerHTML = BOOKS_ALL.map((b, i) => `<button data-b="${i}" style="--c:${b.acc}">${esc(b.name)}</button>`).join("");
 $("shelfBar").querySelectorAll("button").forEach(b => b.onclick = () => approachBook(+b.dataset.b));
 document.querySelectorAll("[data-n]").forEach(el => { const k = el.dataset.n; if (NAMES[k]) el.textContent = NAMES[k]; });
-document.title = `${NAMES.museum}・${NAMES.library}`;
+document.title = NAMES.museum;
 
 // ---------------------------------------------------------------- まわす
 const clock = new THREE.Clock(); let acc = 0, mapAcc = 0, frames = 0, tt = 0;
@@ -1585,7 +1613,7 @@ function tick() {
   for (const d of ctxDoors) { const want = -ENT.th + (open ? d.sgn * 1.35 : 0); d.pivot.rotation.y += (want - d.pivot.rotation.y) * Math.min(1, dt * 2.2); }
   LIBW.tick(dt, tt, -1);
   if (marker.material.opacity > 0) marker.material.opacity = Math.max(0, marker.material.opacity - dt * .9);
-  exploreTick(dt); stepTick(dt);
+  exploreTick(dt); stepTick(dt); syncListener();
   EX.tick(dt, tt, mode === "walk" && space === "museum");
   acc += dt; if (acc > .3) { acc = 0;
     const nsp = region(me.pos.x, me.pos.z).kind === "library" ? "library" : "museum";
@@ -1599,7 +1627,7 @@ function tick() {
 function prog(p) { $("prog").querySelector("i").style.width = Math.round(p) + "%"; }
 
 placeStart(); resize(); camera.position.copy(me.pos); camera.rotation.set(me.pitch, me.yaw, 0, "YXZ"); setZone(zoneOf(), true); streamBays();
-hang(featBay, featBay.slots[0]).catch(e => console.warn("入口の一枚を読めませんでした", e?.type || e));
+
 prog(20);
 const warm = Promise.all([new Promise(r => setTimeout(r, 50)), loadAoi()]);
 renderer.compileAsync?.(scene, camera).catch(() => {});
@@ -1636,7 +1664,9 @@ function otoLines(st) {
   if (st.t === "exh0") return [O.exh];
   if (st.t === "exh") { const L = (T.anim || {})[st.it.a.id] || {}; return [L.work, L.come]; }
   if (st.t === "room") return T.rooms[st.i].intro;
-  if (st.t === "kei") { const K = T.rooms[st.i].kei[st.j]; return [...K.lines, K.side]; }
+  if (st.t === "kei") { const K = T.rooms[st.i].kei[st.j], k = rooms[st.i].kei[st.j], z = rooms[st.i].zones?.[k.genre], first = rooms[st.i].kei.find(x => x.genre === k.genre) === k;
+    // 部屋の奥へ向いて、右の壁か左の壁か（2026-10-07 本人「館の構造を音と言葉で伝える」）。区画のはじめでは区画の名も
+    return [first && z && rooms[st.i].zones.length > 1 ? `${z.name}。` : null, (st.j === 0 ? (k.side > 0 ? O.right1 : O.left1) : null) || (k.side > 0 ? O.right : O.left), ...K.lines, K.side].filter(Boolean); }
   if (st.t === "lib") return [O.lib, ...T.library.slice(0, 1)];
   if (st.t === "book") return [];
   return [O.end];
@@ -1654,7 +1684,11 @@ function otoGo(n, quick) {
   };
   const far = Math.hypot(p.x - me.pos.x, p.z - me.pos.z) > 12;
   if (!quick && !far) talk([T.move[oto.at % T.move.length]], otoActs());   // 歩くあいだ（足音）は「こちらです」
-  if (quick || far) teleport(p, look, arrive); else goTo(p, look, arrive);
+  // 2026-10-08 11 人の検証：歩くあいだに次へを押すと、移動の一言だけが続いて作品の話にたどり着かなかった
+  //   → 歩いている途中の「次へ」は、歩きを飛ばしてその景の話からはじめる（otoNext）
+  const arr = () => { if (oto.pending?.tk === tk) oto.pending = null; arrive(); };
+  oto.pending = quick || far ? null : { tk, p, look, arr };
+  if (quick || far) teleport(p, look, arrive); else goTo(p, look, arr);
 }
 function otoKeiSound(st) {   // 景の音（借りた録音）を、その景の前で少しだけ（近づいた音として）
   const k = rooms[st.i].kei[st.j]; if (!k.snd?.f || !AUD.ctx) return;
@@ -1678,17 +1712,36 @@ function otoRooms() {
   talk([T.oto?.rooms].filter(Boolean), otoActs());
 }
 function otoActs() { return []; }
-function otoNext() { const st = otoStops[oto.at]; if (st?.t === "book" && reader.isOpen && reader.state.s < reader.state.sp.length - 1) { reader.turn(1); return; } otoGo(oto.at + 1); }
+function otoNext() { const q = oto.pending; if (q && q.tk === oto.tok) { oto.pending = null; me.onArrive = null; me.path = []; hush(); teleport(q.p, q.look, q.arr); return; } const st = otoStops[oto.at]; if (st?.t === "book" && reader.isOpen && reader.state.s < reader.state.sp.length - 1) { reader.turn(1); return; } otoGo(oto.at + 1); }
 function otoBack() { const st = otoStops[oto.at]; if (st?.t === "book" && reader.isOpen && reader.state.s > 0) { reader.turn(-1); return; } otoGo(oto.at - 1); }
-// 足音：歩いているあいだ、短い低い音（その場で作る）
-let stepT = 0;
+// 足音（2026-10-07 本人「歩くときの足音がコツコツと響く（床の材質に合った靴音と、広間の残響）」）：その場で作る短い音。
+//   円堂・玄関＝大理石と石（高めの硬い音・長い残響）、部屋＝寄木（低めの柔らかい音・短い残響）、書架の間＝絨毯と木（こもった音）
+let stepT = 0, stepPh = 0;
+const STEP = { rev: null, wet: null, irKey: "" };
+function stepIR(sec, decay) {
+  const c = AUD.ctx, n = Math.floor(c.sampleRate * sec), b = c.createBuffer(2, n, c.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let k = 0; k < n; k++) d[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / n, decay); }
+  return b;
+}
 function stepTick(dt) {
-  if (!OTO || !AUD.ctx || AUD.muted || !me.path.length) { stepT = 0; return; }
-  stepT -= dt; if (stepT > 0) return; stepT = .52;
-  const c = AUD.ctx, n = c.createBufferSource(), b = c.createBuffer(1, c.sampleRate * .08, c.sampleRate), d = b.getChannelData(0);
-  for (let k = 0; k < d.length; k++) d[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / d.length, 3);
-  const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = space === "library" ? 500 : 900; const g = c.createGain(); g.gain.value = .25;
-  n.buffer = b; n.connect(f); f.connect(g); g.connect(AUD.master); n.start();
+  const moving = me.path.length || keys.size || joy.on;
+  if (!AUD.ctx || AUD.muted || !moving || mode !== "walk") { stepT = Math.min(stepT, .12); return; }
+  stepT -= dt; if (stepT > 0) return; stepT = .5;
+  const c = AUD.ctx, reg = region(me.pos.x, me.pos.z), mat = reg.kind === "room" ? "wood" : reg.kind === "library" ? "rug" : "stone";
+  const P = { stone: { f: 2600, q: 6, g: .2, lp: 6000, ir: [2.6, 3.2], wet: .32 }, wood: { f: 1100, q: 3, g: .22, lp: 2800, ir: [1.1, 4], wet: .16 }, rug: { f: 600, q: 1.5, g: .16, lp: 1400, ir: [.7, 5], wet: .08 } }[mat];
+  if (!STEP.rev) { STEP.rev = c.createConvolver(); STEP.wet = c.createGain(); STEP.rev.connect(STEP.wet); STEP.wet.connect(AUD.master); }
+  if (STEP.irKey !== mat) { STEP.irKey = mat; STEP.rev.buffer = stepIR(...P.ir); }
+  STEP.wet.gain.value = P.wet;
+  // かかと（硬い短い音）とつま先（少し弱い音）を少しずらして
+  stepPh ^= 1;
+  for (const [delay, amp] of [[0, 1], [.045, .45]]) {
+    const len = .06, n = c.createBufferSource(), b = c.createBuffer(1, Math.floor(c.sampleRate * len), c.sampleRate), d = b.getChannelData(0);
+    for (let k = 0; k < d.length; k++) d[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / d.length, 6);
+    const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = P.f * (stepPh ? 1 : .92); bp.Q.value = P.q;
+    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = P.lp;
+    const g = c.createGain(); g.gain.value = P.g * amp * (OTO ? 1.2 : .8);
+    n.buffer = b; n.connect(bp); bp.connect(lp); lp.connect(g); g.connect(AUD.master); g.connect(STEP.rev); n.start(c.currentTime + delay);
+  }
 }
 if (OTO) {
   document.body.classList.add("oto"); document.title = `${NAMES.mode_oto || "音で巡る館"}　${NAMES.museum}`;

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>森羅美術館・森羅図書館</title>
-<meta name="description" content="森羅美術館（Shinra Museum）と森羅図書館。森羅百景の八つの連作を、碧と歩いて巡る美術館と、一冊ずつ手にとって読む図書館。">
+<title>森羅博物館</title>
+<meta name="description" content="森羅博物館（Shinra Museum）。森羅百景の八つの連作を、碧と歩いて巡る美術館と、一冊ずつ手にとって読む図書館。">
 <style>
 :root{--bg:#15110c;--ink:#efe6d2;--dim:#b9ab92;--line:#4a3d2c;--card:#211a12;--card2:#2b2217;--gold:#c9a45c;--gold2:#e7cf93;--aoi:#4fb3a8;--aoi2:#18322f;--paper:#f6efdf;--pink:#2a2018;
   --shadow:0 10px 36px rgba(0,0,0,.45);--mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;--goth:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif}
@@ -24,6 +24,7 @@ a{color:var(--gold2)}
 /* 上の帯 */
 #top{position:fixed;top:0;left:0;right:0;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:max(10px,env(safe-area-inset-top)) 12px 0;pointer-events:none;z-index:5}
 #top>*{pointer-events:auto}
+body.reading #top{display:none}   /* 本をひらいたら上の道具（⌂・⚙）は隠す。本の題・目次と重なっていた（2026-10-08 11 人の検証） */
 #where{background:color-mix(in srgb,var(--card) 86%,transparent);border:1px solid var(--line);border-radius:14px;padding:7px 12px;box-shadow:var(--shadow);max-width:52vw;min-width:0}
 #where b{display:block;font-family:var(--mincho);font-size:17px;font-weight:600;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #where small{display:block;font-size:14px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -71,7 +72,8 @@ body.inlib #listBtn{display:none}
   #guide .face,#guide img{width:22px;height:22px}
   #say{font-size:14.5px;line-height:1.45;letter-spacing:.01em}
   #acts{margin-top:3px;gap:5px}
-  #acts .btn{min-height:30px;font-size:13px;padding:0 10px;border-radius:999px}
+  #acts{flex-wrap:wrap;overflow-x:visible}   /* 2026-10-08 11 人の検証：13px で 4 つ目が画面の外に切れていた → 折り返して 15px */
+  #acts .btn{min-height:34px;font-size:15px;padding:0 11px;border-radius:999px}
   #acts .ib{width:34px}
   #guideFold{width:32px;height:32px;font-size:14px;right:1px;bottom:3px}
   #acts{margin-right:30px}
@@ -196,6 +198,22 @@ body.oto #hint,body.oto #zones{display:none!important}
 #reader .rh .btn{min-height:44px;font-size:15px;padding:0 14px}
 #book{position:relative;flex:1;width:min(1180px,100%);display:flex;justify-content:center;align-items:stretch;perspective:2400px;min-height:0;touch-action:pan-y}
 @media (min-width:760px) and (prefers-reduced-motion:no-preference){#book .spread{transform:perspective(2200px) rotateX(7deg);transform-origin:50% 80%;box-shadow:0 30px 60px rgba(0,0,0,.55)}}
+/* 表紙（布張り・箔押し・角の金具・帯） */
+.cover.lux{background:repeating-linear-gradient(0deg,rgba(255,255,255,.04) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(0,0,0,.07) 0 1px,transparent 1px 3px),radial-gradient(circle at 40% 30%,color-mix(in srgb,var(--acc) 55%,#2a1c10),color-mix(in srgb,var(--acc) 30%,#120c06) 80%);box-shadow:inset 10px 0 18px rgba(0,0,0,.45)}
+.cover.lux::before{content:"";position:absolute;inset:22px;border:3px solid #d9b45e;outline:1px solid #d9b45e;outline-offset:-10px;pointer-events:none}
+.cover.lux h1{background:linear-gradient(135deg,#f6e3a8,#c99a42 45%,#f1d68f 55%,#a97a2c);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+/* 頁の角（めくれかけ）。押す・つまんで引くとめくれる */
+.curl{position:absolute;bottom:0;width:clamp(84px,11vw,130px);height:clamp(84px,11vw,130px);z-index:5;cursor:pointer;touch-action:none}
+.curl.nx{right:0}.curl.pv{left:0}
+.curl i{position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,0,0,0) 50%,#d8caa8 50%,#fbf5e6 70%,#e9dcc0);box-shadow:-6px -6px 14px rgba(0,0,0,.28);clip-path:polygon(100% 0,100% 100%,0 100%);transform-origin:100% 100%;transition:transform .25s}
+.curl.pv i{background:linear-gradient(225deg,rgba(0,0,0,0) 50%,#d8caa8 50%,#fbf5e6 70%,#e9dcc0);clip-path:polygon(0 0,100% 100%,0 100%);transform-origin:0 100%;box-shadow:6px -6px 14px rgba(0,0,0,.28)}
+@media (prefers-reduced-motion:no-preference){.curl.nx i{animation:curlNx 2.6s ease-in-out infinite}.curl.pv i{animation:curlPv 2.6s ease-in-out infinite 1.3s}}
+@keyframes curlNx{0%,60%,100%{transform:scale(.55)}75%{transform:scale(.92)}}
+@keyframes curlPv{0%,60%,100%{transform:scale(.4)}75%{transform:scale(.7)}}
+.curl:hover i,.curl.drag i{animation:none;transform:scale(1)}
+.curl[hidden]{display:none}
+.btn.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;padding:0;border:0;min-height:0}
+.btn.sr:focus{position:static;width:auto;height:auto;clip:auto;padding:0 14px;min-height:48px}
 /* 見開き：左＝絵・図、右＝見出しと文 */
 .pin.fig{display:flex;flex-direction:column;justify-content:center;align-items:center}
 .pin.fig figure img{max-height:62vh}
@@ -268,7 +286,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <div id="fade"></div>
 
 <header id="top" hidden>
-  <div id="where" aria-live="polite"><b id="whereName">森羅美術館</b><small id="whereSub">入口の広間</small></div>
+  <div id="where" aria-live="polite"><b id="whereName">森羅博物館</b><small id="whereSub">入口の広間</small></div>
   <div id="tools">
     <button class="ico" id="homeBtn" aria-label="玄関へもどる" title="玄関へもどる">⌂</button>
     <button class="ico" id="muteBtn" aria-label="音を消す" aria-pressed="false" title="音">🔊</button>
@@ -312,8 +330,10 @@ body.oto #hint,body.oto #zones{display:none!important}
     <button class="btn" id="rdToc">目次</button>
     <button class="btn" id="rdAoi" title="碧が、はじめの頁を声で読みます">碧に読んでもらう</button>
   </div>
-  <div id="book"><div class="spread" id="spread"><div class="pg l" id="pgL"></div><div class="pg r" id="pgR"></div></div></div>
-  <div class="rf"><button class="btn" id="rdPrev" aria-label="前の頁">‹ 前へ</button><span id="rdPos" aria-live="polite"></span><button class="btn pri" id="rdNext" aria-label="次の頁">次へ ›</button></div>
+  <div id="book"><div class="spread" id="spread"><div class="pg l" id="pgL"></div><div class="pg r" id="pgR"></div></div>
+    <!-- 頁の角：めくれかけて誘う。押す・つまんで引くとめくれる（2026-10-07 本人「ボタンではなく、動的なアニメーション」） -->
+    <div class="curl nx" id="curlNext" aria-hidden="true"><i></i></div><div class="curl pv" id="curlPrev" aria-hidden="true"><i></i></div></div>
+  <div class="rf"><button class="btn sr" id="rdPrev" aria-label="前の見開き">‹ 前へ</button><span id="rdPos" aria-live="polite"></span><button class="btn pri sr" id="rdNext" aria-label="次の見開き">次へ ›</button></div>
 </div>
 
 <div id="map" class="sheet" hidden role="dialog" aria-label="館内の地図"><div class="in">
@@ -348,7 +368,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <!-- 2026-10-07 本人「TOP の選択のページをやめる：開いたらはじめから博物館の中にいる（入口に立っている）形に」。読み込みのあいだだけ、館の名と細い帯 -->
 <div id="boot" role="status" aria-live="polite">
   <div class="b-in">
-    <div class="b-name"><span data-n="museum">森羅美術館</span></div>
+    <div class="b-name"><span data-n="museum">森羅博物館</span></div>
     <div id="prog"><i></i></div>
     <p id="startWarn" hidden></p>
   </div>
@@ -368,6 +388,6 @@ body.oto #hint,body.oto #zones{display:none!important}
 <script src="data/books.js" onerror="window.BOOKS=[]"></script>
 <script src="data/anim.js" onerror="window.ANIM=[]"></script>
 <script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js';document.body.appendChild(s);}</script>
-<noscript><p style="padding:20px">この館は JavaScript で動きます。<a href="https://mitsulab-soil.github.io/shinra-hyakkei/">森羅百景</a>は JavaScript なしでも読めます。</p></noscript>
+<noscript><p style="padding:20px">この博物館は JavaScript で動きます。</p></noscript>
 </body>
 </html>
