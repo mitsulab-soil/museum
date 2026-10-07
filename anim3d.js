@@ -62,7 +62,7 @@ export function createExhibit(o) {
   const NF = FACES.length, side = FACES[NF - 1];
   const extraSlots = [{ f: side, v: -2.4 }, { f: side, v: 0 }, { f: side, v: 2.4 }];
   const used = new Set();
-  const order = [...ANIM].sort((a, b) => (a.id === "koi" ? -1 : 0) - (b.id === "koi" ? -1 : 0));
+  const order = ANIM.filter(a => a.where !== "room").sort((a, b) => (a.id === "koi" ? -1 : 0) - (b.id === "koi" ? -1 : 0));
   for (const a of order) {
     const r = room(a.room); if (!r) continue;
     if (!used.has(a.room)) {
@@ -98,7 +98,19 @@ export function createExhibit(o) {
     const label = o.labelCard(a, r, Math.max(.7, Math.min(1.25, w))); label.position.set(0, -h / 2 - fr - .17, .12); g.add(label);
     const it = { a, r, f, v, g, w, h, full, empty, frame, parts: [], state: "rest", t: 0, next: 8 + Math.random() * 25, mode: "show", wait: 0 };
     full.userData = frame.userData = { anim: it }; clickables.push(full, frame);
-    const s = w / iw;
+    addParts(it, a, w, h);
+    return it;
+  }
+  // 部屋の中の絵（2026-10-08 本人「部屋の中の絵からも生きものが抜け出るように」）：掛かっている絵の上に、写しを重ねて置く。
+  //   parent＝その絵の掛かる場所の group（bay.g）、(x, y)＝絵のまん中、w×h＝絵の大きさ、r＝部屋、v＝壁の側（±）、u＝部屋の奥行き
+  const roomItems = [];
+  function attach(a, r, parent, x, y, z, w, h, v, u) {
+    const g = new THREE.Group(); g.position.set(x, y, z - .07); parent.add(g);
+    const it = { a, r, f: r, v, u, g, w, h, inRoom: true, parts: [], state: "rest", t: 0, next: 1.5 + Math.random() * 2, mode: "show", wait: 0 };
+    addParts(it, a, w, h); roomItems.push(it); return it;
+  }
+  function addParts(it, a, w, h) {
+    const [iw, ih] = a.size, s = w / iw, tex = u => { const t = TL.load(u); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
     for (const P of a.parts) {
       const [x0, y0, x1, y1] = P.box, bw = (x1 - x0) * s, bh = (y1 - y0) * s;
       const geo = new THREE.PlaneGeometry(bw, bh, 28, 28);
@@ -120,7 +132,6 @@ export function createExhibit(o) {
       const S = Math.max(1, Math.min(7, (LIFE[a.style] || .3) / Math.max(bw, bh)));
       it.parts.push({ P, m, mat, local: new THREE.Vector3(cx, cy2, .08), fimg, bw, bh, st, S, ph: Math.random() * 6 });
     }
-    return it;
   }
 
   // ---------------------------------------------------------------- 道すじ
@@ -154,6 +165,12 @@ export function createExhibit(o) {
       const R = st.dart ? 3.2 : 2.6, nPts = st.dart ? 6 : 8;
       for (let j = 0; j < nPts; j++) { q = p.clone().addScaledVector(n, 1.4 + Math.random() * R).addScaledVector(side, (Math.random() - .5) * 2 * R).setY(1.4 + Math.random() * 1.8); pts.push(q); }
       pts.push(p.clone().addScaledVector(n, .7), p.clone()); return { kind: st.dart ? "dart" : "curve", pts };
+    }
+    if (it.inRoom) {   // 部屋の鳥：部屋のまん中の上へ出て、奥と手前を一往復して絵へもどる
+      const u0 = it.u, far = u0 + (k % 2 ? 7 : -7), mid = (a, b, s) => a + (b - a) * s;
+      for (const [s, vv, y] of [[.15, .3, st.alt * .62], [.45, -.6, st.alt * .7], [.85, .5, st.alt * .66], [1, -.2, st.alt * .6], [.6, -.9, st.alt * .68], [.25, .2, st.alt * .62]]) pts.push(WF(it.r, Math.max(1.5, mid(u0, far, s)), vv + Math.sin(s * 5) * .4).setY(y));
+      pts.push(p.clone().addScaledVector(n, 1.2).setY(p.y + .3), p.clone().addScaledVector(n, .5), p.clone());
+      return { kind: "curve", pts };
     }
     // 鳥：円堂をひとまわり（案内のときは扉へ）
     if (door) { const up = p.clone().addScaledVector(n, 2).setY(st.alt * .8); pts.push(up, door.clone().setY(3.2)); return { kind: "curve", pts, hold: true }; }
@@ -252,12 +269,20 @@ export function createExhibit(o) {
   const fadeOp = (pt, t, s) => { pt.mat.uniforms.uOp.value = Math.min(1, t / .7) * (1 - smooth(clamp01((s - .94) / .06))); };
   const clamp01 = x => Math.max(0, Math.min(1, x)), smooth = x => x * x * (3 - 2 * x), easeDart = r => r < .35 ? smooth(r / .35) : 1;
 
+  const WP = new THREE.Vector3();
   function tick(dt, T, active) {
     let playing = 0;
     for (const it of items) if (it.state !== "rest") playing++;
-    for (const it of items) {
+    for (const it of roomItems) if (it.state !== "rest") playing++;
+    for (const it of [...items, ...roomItems]) {
       if (it.state === "rest") {
         if (!active || getRM()) continue;
+        if (it.inRoom) {   // 部屋の絵：近づく（6.5 m）と、少しして出てくる。離れると数えなおす
+          if (!it.g.parent?.visible) continue;
+          const d = camera.position.distanceTo(it.g.getWorldPosition(WP));
+          if (d < 6.5) { it.next -= dt; if (it.next <= 0 && playing < 2) { start(it, "show"); playing++; } } else if (d > 10) it.next = Math.max(it.next, 1.5 + Math.random() * 2);
+          continue;
+        }
         const d = camera.position.distanceTo(it.g.position);
         if (d < 15) { it.next -= dt; if (it.next <= 0 && playing < 2) { start(it, "show"); playing++; } }
         continue;
@@ -279,7 +304,7 @@ export function createExhibit(o) {
         }
       }
       if (holding && it.release) { it.release = false; for (const pt of it.parts) if (pt.hold) { pt.hold = false; returnFromDoor(it, pt); } }
-      if (allDone && it.state !== "rest") { it.state = "rest"; it.next = 25 + Math.random() * 35; for (const pt of it.parts) { pt.m.visible = false; } onLanded?.(it); }
+      if (allDone && it.state !== "rest") { it.state = "rest"; it.next = it.inRoom ? 20 + Math.random() * 20 : 25 + Math.random() * 35; for (const pt of it.parts) { pt.m.visible = false; } onLanded?.(it); }
     }
   }
   function hover(pt, dt, T) {   // 扉の前で待つ（鳥は小さく輪を描き、魚はその場でくねる）
@@ -299,5 +324,5 @@ export function createExhibit(o) {
   function release(it) { it.release = true; it.arrived = true; }
   function react(it) { if (it.state === "rest") return false; it.react = .9; return true; }
   function abort(it) { for (const pt of it.parts) { pt.m.visible = false; pt.done = true; pt.hold = false; } it.state = "rest"; it.release = false; }
-  return { items, tick, start, guide, release, abort, react, find: id => items.find(i => i.a.id === id) };
+  return { items, roomItems, attach, tick, start, guide, release, abort, react, find: id => items.find(i => i.a.id === id) };
 }

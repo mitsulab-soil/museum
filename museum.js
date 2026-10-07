@@ -533,6 +533,15 @@ function syncListener() { const L = AUD.ctx?.listener; if (!L || !L.positionX) r
 const animWork = a => { const r = rooms.find(x => x.slug === a.room), k = r?.kei.find(x => x.id === a.kei); return { r, k, w: k?.works[a.wi] }; };
 const EX = createExhibit({ THREE, world, rooms, FACES, WF, R, OBST, darkWood, poolMat, clickables, giltMat, brassMat, camera, getRM: () => RM,
   labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm), onLanded: it => { if (guideIt === it) guideIt = null; } });
+// 部屋の中の絵からも生きものが抜け出る（2026-10-08 本人）：data/anim.js の切り抜きのうち、その絵が部屋の景に掛かっているもの（CC0／PD だけ）
+for (const a of window.ANIM || []) {
+  const r = rooms.find(x => x.slug === a.room), k = r?.kei.find(x => x.id === a.kei), bay = k?.bay; if (!bay) continue;
+  const sl = bay.slots.find(s => !s.quote && s.w && fname(s.w.f) === fname(a.img || a.full)); if (!sl) continue;
+  if (!/^(CC0|パブリックドメイン)/.test((sl.w.lic || "").trim())) continue;
+  const ar = a.size[0] / a.size[1]; let ww = sl.mw, hh = ww / ar; if (hh > sl.mh) { hh = sl.mh; ww = hh * ar; }
+  EX.attach(a, r, bay.g, sl.x, sl.y, .07 + .064, ww, hh, k.side, k.u);
+}
+CALLS.suzume3 = CALLS.suzume; CALLS.tsubame2 = CALLS.tsubame;
 let guideIt = null;
 function animTapped(it) {
   if (tour.on && !tour.susp) suspendTour();
@@ -1570,7 +1579,7 @@ function credits() {
   return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>学校の授業で、教室の画面に映して使ってかまいません（作品の権利の表示は、作品の札のとおり）。めやすは、広間だけなら 2 分、一部屋なら 10 分ほど。</p><p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
   図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。
   一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。<b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></p>
-  <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
+  <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点と、部屋の中の絵の ${EX.roomItems.length} 点（近づくと抜け出てきます）は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
   <h3>生きものの鳴き声（企画展・さわったとき）</h3><ul>${[...new Set(Object.values(CALLS))].map(c => `<li>${esc(c.label)}：${esc(c.who)}・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・音量）</li>`).join("")}</ul>
   <h3>部屋の音と音楽</h3><ul>${ambHTML}</ul>
   <p>景の音（${snd.size} 本）は mitsulab が録ったものではなく、Wikimedia Commons で公開されている他の人の野外録音です。録音者・録音地・権利は景の札に出します。</p>
