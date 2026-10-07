@@ -147,38 +147,12 @@ body.big .sheet{font-size:112%}
 @media (max-width:560px){#acts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}#acts .btn{flex:none}#acts.wrap{flex-wrap:wrap;overflow:visible}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
-/* ───────── はじめ：入口の前の 3D に、題と二つの入り方を重ねる（2026-10-07 本人「入口から３dで制作してください」） ───────── */
-#start{position:fixed;inset:0;z-index:20;overflow:auto;display:flex;flex-direction:column;justify-content:space-between;
-  background:linear-gradient(180deg,rgba(18,13,8,.55) 0,rgba(18,13,8,0) 26%,rgba(18,13,8,0) 42%,rgba(18,13,8,.82) 70%,rgba(18,13,8,.95));padding:max(16px,env(safe-area-inset-top)) 16px max(18px,env(safe-area-inset-bottom))}
-#start .head{text-align:center;margin:0 auto;max-width:900px;text-shadow:0 2px 14px rgba(0,0,0,.8)}
-#start .kick{font-size:14px;letter-spacing:.32em;color:var(--gold2)}
-#start h1{font-family:var(--mincho);font-weight:600;letter-spacing:.16em;font-size:clamp(26px,6vw,40px);margin:6px 0 2px}
-#start .en{font-size:14px;letter-spacing:.2em;color:#e8dcc4}
-#start .lead{font-size:16px;line-height:1.8;color:#f3ead6;max-width:620px;margin:8px auto 0}
-.modes{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:960px;margin:0 auto;width:100%}
-@media (max-width:760px){.modes{grid-template-columns:1fr;gap:10px}}
-.card{position:relative;border-radius:20px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.card .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
-.card .tag{font-size:14px;letter-spacing:.16em}
-.card h2{font-family:var(--mincho);font-size:clamp(22px,5vw,28px);font-weight:600;letter-spacing:.1em;margin:0}
-.card p{font-size:16px;line-height:1.8;margin:0}
-.card .go{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.card .go .btn{min-height:52px;font-size:17px;padding:0 22px}
-.card .meta{font-size:14px;opacity:.9}
-.museum{background:linear-gradient(180deg,rgba(46,34,22,.92),rgba(29,21,13,.94));border:1px solid #6b5332;color:#f3e7cf}
-.museum .tag{color:var(--gold2)}
-.museum .btn.pri{background:linear-gradient(180deg,#e3c27d,#b98f45);border-color:#d8b46b}
-.library{background:linear-gradient(180deg,rgba(243,234,214,.95),rgba(228,214,184,.95));border:1px solid #bba57b;color:#2b2116}
-.library .tag{color:#3f6248}
-.library .btn.pri{background:#365a43;border-color:#365a43;color:#f8f1e1}
-.library .meta{color:#5b4b35}
-#prog{height:4px;background:#ffffff22;border-radius:2px;overflow:hidden;width:100%}
 #prog i{display:block;height:100%;width:0;background:var(--gold2);transition:width .3s}
+#boot{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 40%,#2a2016,#0d0a07 70%);transition:opacity .9s}
+#boot.gone{opacity:0;pointer-events:none}
+#boot .b-in{width:min(360px,80vw);text-align:center}
+#boot .b-name{font-family:var(--mincho);font-size:clamp(24px,6vw,34px);letter-spacing:.24em;color:#efe3c6;margin-bottom:18px;font-weight:600}
 #startWarn{margin:10px auto 0;max-width:720px;padding:12px 16px;border-radius:12px;background:#3b1f17;font-size:16px;line-height:1.8}
-#start .foot{text-align:center;margin:10px auto 0;font-size:15px;color:#d8cbb2;max-width:760px;line-height:1.8}
-#start .foot button:not(.btn){background:none;border:0;color:var(--gold2);text-decoration:underline;min-height:44px;font-size:16px}
-#start .foot .btn{margin-left:6px}
-@media (max-width:760px){.card .hide-s{display:none}}
 
 /* ───────── 図書館：棚の本の一覧（3D の下）と、本の読み手 ───────── */
 #shelfBar{position:fixed;left:0;right:0;top:calc(max(10px,env(safe-area-inset-top)) + 118px);z-index:6;display:flex;gap:8px;overflow-x:auto;padding:4px 12px;scrollbar-width:none;justify-content:safe center}
@@ -249,7 +223,7 @@ body.big .sheet{font-size:112%}
 <header id="top" hidden>
   <div id="where" aria-live="polite"><b id="whereName">森羅美術館</b><small id="whereSub">入口の広間</small></div>
   <div id="tools">
-    <button class="ico" id="homeBtn" aria-label="はじめの画面へ（美術館と図書館をえらびなおす）" title="はじめの画面へ">⌂</button>
+    <button class="ico" id="homeBtn" aria-label="玄関へもどる" title="玄関へもどる">⌂</button>
     <button class="ico" id="spaceBtn" aria-label="図書館へ移る" title="図書館へ移る">📚</button>
     <button class="ico" id="muteBtn" aria-label="音を消す" aria-pressed="false" title="音">🔊</button>
     <button class="ico" id="listBtn" aria-label="一覧で見る（3D を使わずに）" title="一覧で見る">☰</button>
@@ -314,56 +288,28 @@ body.big .sheet{font-size:112%}
   <div class="cred-all" id="credAll"></div>
 </div></div>
 
-<div id="start" role="dialog" aria-label="はじめに">
-  <div class="head">
-    <div class="kick"><span data-n="series">森羅百景</span> ・ 八つの連作</div>
-    <h1><span data-n="museum">森羅美術館</span> ・ <span data-n="library">森羅図書館</span></h1>
-    <div class="en"><span data-n="museum_en">Shinra Museum</span> &amp; <span data-n="library_en">Shinra Library</span></div>
-    <p class="lead">正面の扉から入ります。同じ百景を、ふたつの入り方で。歩いて、聴いて、巡るか。手にとって、めくって、読むか。</p>
-  </div>
-  <div>
-  <div class="modes">
-    <section class="card museum" aria-labelledby="mMus">
-      <div class="body">
-        <div class="tag">碧と歩く ・ 声の案内つき</div>
-        <h2 id="mMus" data-n="museum_go">森羅美術館を巡る</h2>
-        <p>扉をくぐると、石とアーチの円堂から八つの部屋へ。雨の部屋は雨音に、月の部屋は夜に、空気が変わります。碧がとなりを歩き、作品の前で声に出して話します。寄り道のおしゃべりも、少し。</p>
-        <p class="meta hide-s">話したことばは字幕で出ます。気になる絵は押せば、いつでも話を聞けます。音が出ます（押してから）。</p>
-        <div id="prog"><i></i></div>
-        <div class="go"><button class="btn pri" id="enter" disabled>準備しています…</button></div>
-      </div>
-    </section>
-    <section class="card library" aria-labelledby="mLib">
-      <div class="body">
-        <div class="tag">本棚から一冊 ・ 自分の速さで</div>
-        <h2 id="mLib" data-n="library_go">森羅図書館で読む</h2>
-        <p>円堂のまん中の光の輪から、地下の閲覧室へ。高い書架に八冊の百景が並びます。一冊を手にとると、ひらいた本に。景の解説、古今の絵と写真、歌や句を、頁をめくりながら気のすむまで。</p>
-        <p class="meta hide-s">見開きで絵と文を並べて読めます。静かな部屋です。碧は、呼んだときだけ読みます。</p>
-        <div class="go"><button class="btn pri" id="enterLib" disabled>準備しています…</button></div>
-      </div>
-    </section>
-  </div>
-  <p id="startWarn" role="alert" hidden></p>
-  <div class="foot">3D がつらいときは <button id="enterList">一覧で見る</button><span id="resumeWrap"></span><br>碧の声：VOICEVOX:冥鳴ひまり ・ 図版・音・音楽の出典は、中の ⚙ から。</div>
+<!-- 2026-10-07 本人「TOP の選択のページをやめる：開いたらはじめから博物館の中にいる（入口に立っている）形に」。読み込みのあいだだけ、館の名と細い帯 -->
+<div id="boot" role="status" aria-live="polite">
+  <div class="b-in">
+    <div class="b-name"><span data-n="museum">森羅美術館</span></div>
+    <div id="prog"><i></i></div>
+    <p id="startWarn" hidden></p>
   </div>
 </div>
 
 <script>
 /* file:// で開くと museum.js（モジュール）を読めないので、止まったまま待たせず開き方を出す（2026-10-07） */
 (function(){
-  var warn=document.getElementById('startWarn'), btn=document.getElementById('enter');
-  function show(html,label){ warn.innerHTML=html; warn.hidden=false; btn.textContent=label; document.getElementById('enterLib').textContent=label; }
-  if(location.protocol==='file:'){
-    document.getElementById('enterList').hidden=true;
-    show('このページは、ファイルを直接ひらくと館を組み立てられません。ウェブのページとしてひらいてください。','このままでは入れません');
-    return;
-  }
-  setTimeout(function(){ if(!window.__muBoot) show('館を組み立てる道具（three.js）が届いていません。通信を確かめて、ページを読み込み直してください。','読み込めませんでした'); },20000);
+  var warn=document.getElementById('startWarn');
+  function show(html){ warn.innerHTML=html; warn.hidden=false; document.getElementById('prog').hidden=true; }
+  if(location.protocol==='file:'){ show('このページは、ファイルを直接ひらくと館を組み立てられません。ウェブのページとしてひらいてください。'); return; }
+  setTimeout(function(){ if(!window.__muBoot) show('館を組み立てる道具（three.js）が届いていません。通信を確かめて、ページを読み込み直してください。'); },20000);
 })();
 </script>
 <script src="data/museum.js"></script>
 <script src="data/voice.js" onerror="window.VOICE={}"></script>
 <script src="data/books.js" onerror="window.BOOKS=[]"></script>
+<script src="data/anim.js" onerror="window.ANIM=[]"></script>
 <script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js';document.body.appendChild(s);}</script>
 <noscript><p style="padding:20px">この館は JavaScript で動きます。<a href="https://mitsulab-soil.github.io/shinra-hyakkei/">森羅百景</a>は JavaScript なしでも読めます。</p></noscript>
 </body>

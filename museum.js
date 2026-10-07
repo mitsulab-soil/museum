@@ -12,6 +12,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import * as TX from "./tex.js";
 import { esc, fname, licHTML, credit } from "./common.js";
 import { LIB, libWalkable, buildLibrary, createReader, bookList } from "./library.js";
+import { createExhibit } from "./anim3d.js";
 
 const M = window.MUSEUM, T = M.tour, VOICE = window.VOICE || {}, NAMES = M.names;   // 表示する名前は names.json だけから
 window.__muBoot = true;
@@ -470,6 +471,27 @@ const featBay = (() => {
   return bay;
 })();
 
+// 企画展「絵から出てくる生きもの」（2026-10-07 本人）：円堂の扉のわき（その部屋の生きもの）と、左右の壁。素材は data/anim.js（CC0／PD だけ）
+const animWork = a => { const r = rooms.find(x => x.slug === a.room), k = r?.kei.find(x => x.id === a.kei); return { r, k, w: k?.works[a.wi] }; };
+const EX = createExhibit({ THREE, world, rooms, FACES, WF, clickables, giltMat, brassMat, camera, getRM: () => RM,
+  labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm), onLanded: it => { if (guideIt === it) guideIt = null; } });
+let guideIt = null;
+function animTapped(it) {
+  if (tour.on && !tour.susp) suspendTour();
+  intro.tok++; closeAll();
+  const { k, w } = animWork(it.a), L = (T.anim || {})[it.a.id] || {};
+  const stand = WF(it.f, -3.4, it.v), look = WF(it.f, 0, it.v);
+  const acts = [["ついて行く", () => followAnim(it), true], ["札をひらく", () => k && openPanel(k, w)], ["自由に歩く", () => freeTalk(T.idle.free)]];
+  goTo(stand, look, () => { if (!RM) EX.start(it, "show"); talk([L.work, L.come].filter(Boolean), acts); });
+}
+function followAnim(it) {   // 生きものが扉まで行き、見る人がついて行く。着いたら絵へもどる
+  const L = (T.anim || {})[it.a.id] || {}, i = it.r.i;
+  hush(); guideIt = it;
+  const go = () => { EX.guide(it); talk([L.guide].filter(Boolean), []); setTimeout(() => goTo(W(i, 1.6, 0), W(i, 12, 0), () => { EX.release(it); freeTalk([L.arrive].filter(Boolean)); }), RM ? 0 : 1600); };
+  if (it.state !== "rest") EX.abort(it);
+  go();
+}
+
 // 図書館（地下・同じ世界）
 const LIBW = buildLibrary({ THREE, world, put, flush, mats: { parquet, darkWood, woodMat, brassMat, poolMat, paperEdge: new THREE.MeshStandardMaterial({ color: 0xefe4c8, roughness: .8 }) },
   TX, textPlane, fit, rooms, NAMES, clickables, floors, isTouch, MINCHO, GOTH });
@@ -728,6 +750,15 @@ const AUD = {
   level() { if (!this.an || !SP.playing) return 0; this.an.getByteTimeDomainData(this.td); let s = 0; for (let k = 0; k < this.td.length; k += 4) { const x = (this.td[k] - 128) / 128; s += x * x; } return Math.sqrt(s / (this.td.length / 4)); },
 };
 
+// 壁にふれた小さな音（その場で作る短い低い音。録音は使わない）
+function bump() {
+  const c = AUD.ctx; if (!c || AUD.muted) return;
+  const o = c.createOscillator(), g = c.createGain(), f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 420;
+  o.type = "triangle"; o.frequency.setValueAtTime(140, c.currentTime); o.frequency.exponentialRampToValueAtTime(70, c.currentTime + .12);
+  g.gain.setValueAtTime(0, c.currentTime); g.gain.linearRampToValueAtTime(.22, c.currentTime + .008); g.gain.exponentialRampToValueAtTime(.001, c.currentTime + .18);
+  o.connect(f); f.connect(g); g.connect(AUD.master); o.start(); o.stop(c.currentTime + .2);
+}
+
 // ---------------------------------------------------------------- 碧の声と字幕（字幕＝話すことばそのもの）
 const SP = { tok: 0, playing: false, paused: false, cur: "", resolve: null, timer: null, t0: 0, rest: 0 };
 const voiceOn = () => AUD.ctx && !AUD.muted && $("optVoice").checked;
@@ -827,7 +858,7 @@ function warpCut(a, b) {
   return new THREE.Vector3(WARP.x + sgn * nx * (WARP.keep + .4), 0, WARP.z + sgn * nz * (WARP.keep + .4));
 }
 function goTo(p, faceTo = null, onArrive = null, toWarp = false) {
-  me.path = route(p, toWarp); me.faceTo = faceTo; me.onArrive = onArrive;
+  me.userLook = false; me.path = route(p, toWarp); me.faceTo = faceTo; me.onArrive = onArrive;
   if (RM) { teleport(me.path.at(-1), faceTo, onArrive); me.path = []; }
 }
 const goP = (p, faceTo) => new Promise(res => goTo(p, faceTo, res));
@@ -848,7 +879,7 @@ function moveTick(dt) {
     else {
       me.pos.x += dx / d * st; me.pos.z += dz / d * st;
       const want = me.faceTo && (last && d < 1.6) ? Math.atan2(-(me.faceTo.x - me.pos.x), -(me.faceTo.z - me.pos.z)) : Math.atan2(-dx, -dz);
-      if (!dragging) me.yaw += wrapA(want - me.yaw) * ease(dt, 3.2);
+      if (!dragging && !me.userLook) me.yaw += wrapA(want - me.yaw) * ease(dt, 3.2);
     }
   }
   let f = 0, s = 0, turn = 0;
@@ -862,7 +893,10 @@ function moveTick(dt) {
     me.path = []; const sp = 2.2 * dt, fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw);
     const nx = me.pos.x + (fx * f + -fz * s) * sp, nz = me.pos.z + (fz * f + fx * s) * sp;
     walkable.warpOK = true;
-    if (walkable(nx, nz)) { me.pos.x = nx; me.pos.z = nz; } else if (walkable(nx, me.pos.z)) me.pos.x = nx; else if (walkable(me.pos.x, nz)) me.pos.z = nz;
+    // 2026-10-07 本人「壁に近づきすぎると後ろに戻れない」：キー・スティックは壁の手前 .7 m まで。いま線の外にいるなら、少しでも内へ戻る向きは通す
+    const ok = (x, z) => walkable(x, z, .7), cur = ok(me.pos.x, me.pos.z);
+    if (ok(nx, nz) || (!cur && (walkable(nx, nz, .3) || f < 0))) { me.pos.x = nx; me.pos.z = nz; } else if (ok(nx, me.pos.z)) me.pos.x = nx; else if (ok(me.pos.x, nz)) me.pos.z = nz;
+    else if (!me.bumpT || performance.now() - me.bumpT > 700) { me.bumpT = performance.now(); bump(); }
     walkable.warpOK = false;
     if (Math.hypot(me.pos.x - WARP.x, me.pos.z - WARP.z) < WARP.r && !warping) doWarp();
   }
@@ -872,7 +906,7 @@ function moveTick(dt) {
   camera.rotation.set(me.pitch, me.yaw, 0, "YXZ");
 }
 function arrive() {
-  if (me.faceTo) { me.yaw += wrapA(Math.atan2(-(me.faceTo.x - me.pos.x), -(me.faceTo.z - me.pos.z)) - me.yaw); }
+  if (me.faceTo && !me.userLook) { me.yaw += wrapA(Math.atan2(-(me.faceTo.x - me.pos.x), -(me.faceTo.z - me.pos.z)) - me.yaw); }
   const f = me.onArrive; me.onArrive = null; f?.();
 }
 
@@ -881,20 +915,27 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 let dragging = false, down = null;
 const marker = new THREE.Mesh(new THREE.RingGeometry(.22, .3, 40), new THREE.MeshBasicMaterial({ color: 0xe7cf93, transparent: true, opacity: 0 }));
 marker.rotation.x = -Math.PI / 2; scene.add(marker);
-stage.addEventListener("pointerdown", e => { if (mode !== "walk" || e.target !== renderer.domElement) return; down = { x: e.clientX, y: e.clientY, yaw: me.yaw, pitch: me.pitch, id: e.pointerId }; dragging = false; });
+const TAP_PX = isTouch ? 10 : 6;   // これより動いたら「見回す」（タップにしない）
+let touches = 0;
+stage.addEventListener("pointerdown", e => {
+  if (mode !== "walk" || e.target !== renderer.domElement) return;
+  touches++; if (down) { down.multi = true; return; }
+  down = { x: e.clientX, y: e.clientY, yaw: me.yaw, pitch: me.pitch, id: e.pointerId, t: performance.now(), multi: false, max: 0 }; dragging = false;
+});
 stage.addEventListener("pointermove", e => {
   if (mode !== "walk") return;
   if (!down || e.pointerId !== down.id) { hover(e); return; }
-  const dx = e.clientX - down.x, dy = e.clientY - down.y;
-  if (!dragging && Math.hypot(dx, dy) > 7) { dragging = true; stage.setPointerCapture?.(e.pointerId); }
+  const dx = e.clientX - down.x, dy = e.clientY - down.y; down.max = Math.max(down.max, Math.hypot(dx, dy));
+  if (!dragging && down.max > TAP_PX && !down.multi) { dragging = true; me.userLook = true; stage.setPointerCapture?.(e.pointerId); }
   if (dragging) { const k = (isTouch ? 1.6 : 1.2) * camera.fov / 60 / innerHeight * 1.4; me.yaw = down.yaw + dx * k; me.pitch = clamp(down.pitch + dy * k, -.55, .5); }
 });
 addEventListener("pointerup", e => {
+  touches = Math.max(0, touches - 1);
   if (mode !== "walk" || !down || e.pointerId !== down.id) return;
-  const wasDrag = dragging; down = null; dragging = false;
+  const d = down, wasDrag = dragging || d.max > TAP_PX || d.multi; down = null; dragging = false;
   if (!wasDrag) pick(e.clientX, e.clientY);
 });
-addEventListener("pointercancel", () => { down = null; dragging = false; });
+addEventListener("pointercancel", () => { touches = 0; down = null; dragging = false; });
 function rayAt(x, y) { ndc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); }
 const hoverRing = new THREE.Mesh(new THREE.RingGeometry(.2, .26, 40), new THREE.MeshBasicMaterial({ color: 0xe7cf93, transparent: true, opacity: .4, depthWrite: false }));
 hoverRing.rotation.x = -Math.PI / 2; hoverRing.visible = false; scene.add(hoverRing);
@@ -904,7 +945,7 @@ function hover(e) {
   if (aoi?.visible && ray.intersectObject(aoi, true)[0]) { stage.style.cursor = "pointer"; return; }
   const h = ray.intersectObjects([...clickables, ...floors, ...blockers], false)[0];
   if (!h || h.distance > 40) { stage.style.cursor = ""; return; }
-  if (h.object.userData?.bay || h.object.userData?.book != null || h.object.userData?.warp) { stage.style.cursor = "pointer"; return; }
+  if (h.object.userData?.bay || h.object.userData?.book != null || h.object.userData?.warp || h.object.userData?.anim) { stage.style.cursor = "pointer"; return; }
   stage.style.cursor = "";
   if (floors.includes(h.object) && walkable(h.point.x, h.point.z)) { hoverRing.position.set(h.point.x, h.point.y + .012, h.point.z); hoverRing.visible = true; }
 }
@@ -922,19 +963,31 @@ function pick(x, y) {
       const l = space === "museum" ? local(x, z) : null; if (l && l.u > 0 && !walkable(x, z)) { const w = W(l.i, l.u, clamp(l.v, -(HALF - 1.65), HALF - 1.65)); x = w.x; z = w.z; }
       if (walkable(x, z)) { q = new THREE.Vector3(x, 0, z); break; }
     }
-    if (!q || Math.hypot(q.x - c.x, q.z - c.z) < .5) { toast("そこへは行けません"); return; }
+    if (!q || Math.hypot(q.x - c.x, q.z - c.z) < .5) { const bk = backStep(); if (bk) { walkTo(bk, true); return; } toast("そこへは行けません"); return; }
     walkTo(q); return;
   }
   if (h.object.userData?.bay) { approach(h.object.userData.bay, h.object.userData.slot); return; }
   if (h.object.userData?.book != null) { approachBook(h.object.userData.book); return; }
   if (h.object.userData?.warp) { goWarp(); return; }
+  if (h.object.userData?.anim) { animTapped(h.object.userData.anim); return; }
   if (h.distance > 60) return;
   const p = h.point;
   if (!walkable(p.x, p.z)) { const l = local(p.x, p.z); if (l && l.u > 0 && Math.abs(l.v) > 2) { const q = W(l.i, l.u, Math.sign(l.v) * (HALF - 1.65)); if (walkable(q.x, q.z)) { p.x = q.x; p.z = q.z; } } }
-  if (!walkable(p.x, p.z)) { toast("そこへは行けません"); return; }
+  if (!walkable(p.x, p.z)) {   // 行けない床：カメラからその点までの線の上で、いちばん遠くの行ける点へ
+    const c = camera.position, dx = p.x - c.x, dz = p.z - c.z, L = Math.hypot(dx, dz); let q = null;
+    for (let t = L; t > .6; t -= .3) { const x = c.x + dx / L * t, z = c.z + dz / L * t; if (walkable(x, z)) { q = new THREE.Vector3(x, 0, z); break; } }
+    if (!q) { const bk = backStep(); if (bk) { walkTo(bk, true); return; } toast("そこへは行けません"); return; }
+    p.x = q.x; p.z = q.z;
+  }
   walkTo(p);
 }
-function walkTo(p) { if (tour.on && !tour.susp) suspendTour(); intro.tok++; marker.position.set(p.x, groundY(p.x, p.z) + .01, p.z); marker.material.opacity = .9; goTo(p); }
+// いまの向きのまま、うしろへ一歩（1〜2 m）。壁の前で行き場がないとき
+function backStep() {
+  const bx = Math.sin(me.yaw), bz = Math.cos(me.yaw);
+  for (const t of [1.8, 1.4, 1.0, .7]) { const x = me.pos.x + bx * t, z = me.pos.z + bz * t; if (walkable(x, z, .7)) return new THREE.Vector3(x, 0, z); }
+  return null;
+}
+function walkTo(p, keepLook) { if (tour.on && !tour.susp) suspendTour(); intro.tok++; marker.position.set(p.x, groundY(p.x, p.z) + .01, p.z); marker.material.opacity = .9; goTo(p); if (keepLook) me.userLook = true; }
 // ---------------------------------------------------------------- ワープ（広間のまん中 ⇄ 図書館のまん中）
 const intro = { tok: 0 };
 let warping = false;
@@ -1369,6 +1422,7 @@ function credits() {
   return `<p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
   図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。
   一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。<b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></p>
+  <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
   <h3>部屋の音と音楽</h3><ul>${ambHTML}</ul>
   <p>景の音（${snd.size} 本）は mitsulab が録ったものではなく、Wikimedia Commons で公開されている他の人の野外録音です。録音者・録音地・権利は景の札に出します。</p>
   <h3>碧の声</h3><p>VOICEVOX:冥鳴ひまり（前もって声にした一文ずつ。話したことばは字幕にそのまま出します）。碧の言葉は、森羅百景の解説・作品の表・録音の台帳からだけ組んだ事実と、新しい事実を入れない雑談でできています。話したことは保存しません（端末に覚えるのは、設定と、最後に立っていた場所だけ）。</p>
@@ -1388,7 +1442,7 @@ AUD.setMute(AUD.muted);
 applyOpts();
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => { $(b.dataset.close).hidden = true; });
 document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e => { if (e.target === s) s.hidden = true; }));
-function anySheet() { return ["map", "list", "menu"].some(id => !$(id).hidden) || !$("zoom").hidden || !$("start").hidden; }
+function anySheet() { return ["map", "list", "menu"].some(id => !$(id).hidden) || !$("zoom").hidden || mode !== "walk"; }
 function closeAll() { for (const id of ["map", "list", "menu"]) $(id).hidden = true; $("zoom").hidden = true; closePanel(); }
 function fold(on) { if (!on) SP.autoFolded = false; const g = $("guide"); g.classList.toggle("folded", on); on ? (g.setAttribute("role", "button"), g.setAttribute("tabindex", "0"), g.title = "碧のことばをひらく") : (g.removeAttribute("role"), g.removeAttribute("tabindex"), g.title = ""); $("guideFold").textContent = on ? "＋" : "－"; $("guideFold").setAttribute("aria-expanded", String(!on)); }
 $("guideFold").onclick = e => { e.stopPropagation(); fold(!$("guide").classList.contains("folded")); };
@@ -1405,12 +1459,14 @@ function updWhere() {
   const s = a + "|" + b; if (s !== lastWhere) { lastWhere = s; $("whereName").textContent = a; $("whereSub").textContent = b; }
 }
 
-// ---------------------------------------------------------------- はじめ（入口の前の 3D に、題と二つの入り方）・入口から歩いて入る
-const START = E(STEPS + 18);
-function placeStart() { space = "museum"; me.pos.set(START.x, EYE + PLAZA_Y, START.z); me.yaw = 0; me.pitch = .1; me.path = []; document.body.classList.remove("inlib"); }
+// ---------------------------------------------------------------- はじめ：玄関の中に立っている（2026-10-07 本人「TOP の選択のページをやめる：開いたらはじめから博物館の中にいる（入口に立っている）形に」）
+//   音は、はじめて押した（キーを押した）ときから。押すまで碧は話さない。説明は碧のひとことと、小さな手の絵だけ
+const START = E(VEST - 1.6);
+function placeStart() { space = "museum"; me.pos.set(START.x, EYE, START.z); me.yaw = 0; me.pitch = -.03; me.path = []; document.body.classList.remove("inlib"); }
 function enterWalk() {
-  AUD.init(); mode = "walk"; $("start").hidden = true; $("top").hidden = false; $("guide").hidden = false; $("shelfBar").hidden = space !== "library"; applyOpts();
-  zone.key = null; setZone(zoneOf(), true); AUD.zone(ambOf(zone.key)); stage.focus({ preventScroll: true });
+  mode = "walk"; $("boot").classList.add("gone"); setTimeout(() => { $("boot").hidden = true; }, 1000);
+  $("top").hidden = false; $("shelfBar").hidden = space !== "library"; applyOpts();
+  zone.key = null; setZone(zoneOf(), true); stage.focus({ preventScroll: true });
 }
 function showHint() {
   if (store.get("smm-hint", false)) return; store.set("smm-hint", true);
@@ -1419,21 +1475,26 @@ function showHint() {
   const off2 = e => { if (e.target === renderer.domElement) setTimeout(off, 1200); };
   addEventListener("pointerdown", off2); setTimeout(off, 9000);
 }
+let woke = false;
+function wake() {   // はじめて押したとき：音の仕組みを立て、碧がひとこと
+  if (woke || mode !== "walk") return; woke = true;
+  AUD.init(); AUD.zone(ambOf(zone.key)); $("guide").hidden = false; aoiJump();
+  const acts = [["案内して", () => introWalk(), true], ["自分で歩く", () => { intro.tok++; freeTalk([T.idle.free]); }], ...(resumeAt && resumeOK ? [["続きから（" + rooms[region(resumeAt[0], resumeAt[1]).i].name + "）", resumeGo]] : [])];
+  curActs = () => acts; talk(T.outside, acts);
+}
+addEventListener("pointerdown", () => wake(), { capture: true });
+addEventListener("keydown", e => { if (!e.target.closest?.("input,textarea,select")) wake(); }, { capture: true });
 async function introWalk(toLibrary) {
-  const tk = ++intro.tok; placeStart(); enterWalk(); aoiJump();
-  const pT = talk(toLibrary ? [T.outside[0], T.warp.guide_lib] : T.outside, [["自分で歩く", () => { intro.tok++; me.path = []; showHint(); freeTalk([T.idle.free]); }]]);
-  await goP(E(VEST + 2.2), E(0)); if (tk !== intro.tok) return;
+  const tk = ++intro.tok; if (!woke) wake();
   await goP(new THREE.Vector3(0, 0, 14.2), new THREE.Vector3(STELE.x, 0, STELE.z)); if (tk !== intro.tok) return;
-  if (!await pT || tk !== intro.tok) return;
-  showHint();
   if (toLibrary) { goWarp(); return; }
   const acts = [["部屋をえらぶ", openMap, true], [FEAT.k.id === "kaeru" ? "蛙の壺を見る" : "正面の一枚を見る", () => approach(featBay, featBay.slots[0])], [`${NAMES.library}へ`, goWarp], ["順に案内して", () => runTour(0)]];
   curActs = () => acts; talk(T.lobby, acts);
 }
-function goHome() {
+function goHome() {   // 玄関へもどる
   intro.tok++; hush(); stopTour(false); closeAll(); if (reader.isOpen) reader.close();
-  mode = "start"; placeStart(); $("top").hidden = true; $("guide").hidden = true; $("joy").hidden = true; $("shelfBar").hidden = true;
-  $("start").hidden = false; AUD.zone(null); zone.key = null; setZone(zoneOf(), true);
+  if (space === "library") { doWarp(() => teleport(START, new THREE.Vector3(0, 0, 0))); return; }
+  teleport(START, new THREE.Vector3(0, 0, 0));
 }
 $("homeBtn").onclick = goHome;
 // 美術館 ⇄ 図書館を、どこからでも（光の輪までは歩かずに。光の輪はそのまま残す）
@@ -1459,6 +1520,7 @@ function tick() {
   LIBW.tick(dt, tt, -1);
   if (marker.material.opacity > 0) marker.material.opacity = Math.max(0, marker.material.opacity - dt * .9);
   exploreTick(dt);
+  EX.tick(dt, tt, mode === "walk" && space === "museum");
   acc += dt; if (acc > .3) { acc = 0; streamBays(); updWhere(); setZone(zoneOf()); if (mode === "walk" && !me.path.length && space === "museum" && region(me.pos.x, me.pos.z).kind === "room") store.set("smm-at", [+me.pos.x.toFixed(2), +me.pos.z.toFixed(2), +me.yaw.toFixed(3)]); }
   if (mode === "walk") { mapAcc += dt; if (mapAcc > .2) { mapAcc = 0; drawMini(); } }
   if (!document.hidden && $("reader").hidden) { renderer.render(scene, camera); frames++; }
@@ -1472,18 +1534,12 @@ prog(20);
 const warm = Promise.all([new Promise(r => setTimeout(r, 50)), loadAoi()]);
 renderer.compileAsync?.(scene, camera).catch(() => {});
 requestAnimationFrame(tick);
-warm.then(() => { prog(100); for (const id of ["enter", "enterLib"]) $(id).disabled = false; $("enter").textContent = `${NAMES.guide}と巡る`; $("enterLib").textContent = "書架へ"; });
 const resumeAt = store.get("smm-at", null);
-if (resumeAt && (() => { space = "museum"; return walkable(resumeAt[0], resumeAt[1]) && region(resumeAt[0], resumeAt[1]).kind === "room"; })()) {
-  const b = document.createElement("button"); b.className = "btn"; b.id = "resume"; b.textContent = "続きから（" + rooms[region(resumeAt[0], resumeAt[1]).i].name + "）";
-  b.onclick = () => { if ($("enter").disabled) return; intro.tok++; space = "museum"; me.pos.set(resumeAt[0], EYE, resumeAt[1]); me.yaw = resumeAt[2]; me.pitch = -.02; enterWalk(); aoiJump(); streamBays(); freeTalk([T.idle.hello]); };
-  $("resumeWrap").appendChild(b);
-}
-$("enter").onclick = () => introWalk(false);
-$("enterLib").onclick = () => introWalk(true);
-$("enterList").onclick = () => { intro.tok++; space = "museum"; me.pos.set(0, EYE, 14.2); me.yaw = 0; enterWalk(); aoiJump(); openList(); freeTalk([T.idle.hello]); };
+const resumeOK = !!resumeAt && (() => { space = "museum"; return walkable(resumeAt[0], resumeAt[1]) && region(resumeAt[0], resumeAt[1]).kind === "room"; })();
+function resumeGo() { intro.tok++; space = "museum"; teleport(new THREE.Vector3(resumeAt[0], 0, resumeAt[1]), null, () => { me.yaw = resumeAt[2]; freeTalk([T.idle.hello]); }); }
+warm.then(() => { prog(100); enterWalk(); showHint(); });
 
 // 確かめ用（Playwright）
 window.__mu = { featBay, rooms, bays, me, A, tour, SP, AUD, T, zone, NAMES, LIBW, reader, intro, get space() { return space; }, get vrm() { return vrm; }, get frames() { return frames; }, get mode() { return mode; }, renderer, camera, scene,
-  runTour, tourNextKei, enterRoom, openPanel, openMap, openList, approach, approachBook, region, walkable, pick, goTo, streamBays, goWarp, doWarp, goHome, introWalk, E, VEST,
+  runTour, tourNextKei, enterRoom, openPanel, openMap, openList, approach, approachBook, region, walkable, pick, goTo, streamBays, goWarp, doWarp, goHome, introWalk, wake, E, VEST, get EX() { return EX; },
   info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, geo: renderer.info.memory.geometries }) };
