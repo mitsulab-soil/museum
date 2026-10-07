@@ -27,7 +27,8 @@ void main(){ vec4 c = texture2D(uMap, vUv); if (c.a < .04) discard; gl_FragColor
 
 // life＝外に出たときの体の長さ（m・いちばん長いところ）。おおよその実物の大きさ（雀・燕は翼を広げて 20〜30 cm 台、雁は 1.3 m 以上、鯉 60 cm、野うさぎ 50 cm、鶯 15 cm、鷺 90 cm）。
 //   小さすぎて見えない蝶・蜻蛉・鶯は、見える大きさの下限（.28 m）にそろえた（README に書いた）
-const LIFE = { sparrow: .26, swallow: .32, goose: 1.35, smallbird: .26, butterfly: .28, dragonfly: .28, carp: .65, hare: .55, warbler: .28, heron: .9 };
+//   2026-10-07 本人「飛び出たアニメーションは少し大きくして目立たせる」→ 実物の 1.4 倍、下限 .45 m
+const LIFE = Object.fromEntries(Object.entries({ sparrow: .26, swallow: .32, goose: 1.35, smallbird: .26, butterfly: .28, dragonfly: .28, carp: .65, hare: .55, warbler: .28, heron: .9 }).map(([k, v]) => [k, Math.max(.45, v * 1.4)]));
 const STYLE = {
   sparrow:   { mode: 0, dur: 15, flapHz: 9, amp: .95, glide: [.42, .2], alt: 4.6, rad: 9.5, bob: .5 },
   swallow:   { mode: 0, dur: 11, flapHz: 7, amp: .85, glide: [.5, .55], alt: 5.2, rad: 12.5, bob: 1.6 },
@@ -47,36 +48,47 @@ export function createExhibit(o) {
   const TL = new THREE.TextureLoader();
   const items = [];
   const room = slug => rooms.find(r => r.slug === slug);
-  // 置き場：部屋の扉の右わきの壁（その部屋の生きもの）／円堂の左右の壁（いきもの百景のほかの三点）
-  const NF = FACES.length, sideA = FACES[1], sideB = FACES[NF - 1];
-  const extraSlots = [{ f: sideA, v: -2.7 }, { f: sideA, v: 2.7 }, { f: sideB, v: 0 }];
+  // 置き場：円堂のまん中の踊り場に、部屋ごとの台（その部屋の扉へ向かう道の少しわき・円堂のまん中を向く）。
+  //   いきもの百景のほかの三点は、玄関わきの壁（もう一方の面は書架の部屋の扉）。2026-10-07 本人「企画展として中央の踊り場に」
+  const NF = FACES.length, side = FACES[NF - 1];
+  const extraSlots = [{ f: side, v: -2.4 }, { f: side, v: 0 }, { f: side, v: 2.4 }];
   const used = new Set();
   const order = [...ANIM].sort((a, b) => (a.id === "koi" ? -1 : 0) - (b.id === "koi" ? -1 : 0));
   for (const a of order) {
     const r = room(a.room); if (!r) continue;
-    let f, v, big = false;
-    if (!used.has(a.room)) { used.add(a.room); f = r; v = 4.05; }
-    else { const s = extraSlots.shift(); if (!s) continue; f = s.f; v = s.v; big = true; }
-    items.push(build(a, r, f, v, big));
+    if (!used.has(a.room)) {
+      used.add(a.room);
+      const ang = r.th + .22, rE = o.R - 6.2, x = Math.sin(ang) * rE, z = -Math.cos(ang) * rE;
+      const nrm = new THREE.Vector2(-x, -z).normalize();
+      items.push(build(a, r, { p: new THREE.Vector2(nrm.y, -nrm.x), th: Math.atan2(-x, -z), easel: true, x, z }, 1, false));
+      o.OBST?.push({ x, z, r: .85 });
+    } else { const sl = extraSlots.shift(); if (!sl) continue; items.push(build(a, r, sl.f, sl.v, true)); }
   }
 
   function build(a, r, f, v, big) {
-    const [iw, ih] = a.size, ar = iw / ih, maxW = big ? 2.1 : 1.22, maxH = big ? 2.2 : 1.85;
+    const [iw, ih] = a.size, ar = iw / ih, maxW = big ? 1.5 : 1.25, maxH = big ? 1.8 : 1.45;
     let w = maxW, h = w / ar; if (h > maxH) { h = maxH; w = h * ar; }
-    const g = new THREE.Group(); const p = WF(f, -.62, v); const cy = big ? 2.45 : 2.3;
-    g.position.set(p.x, cy, p.z); g.rotation.y = -f.th; world.add(g);
+    const g = new THREE.Group();
+    if (f.easel) {   // 自立の台（木の脚・真鍮の受け）
+      g.position.set(f.x, 1.78, f.z); g.rotation.y = f.th; world.add(g);
+      const legM = o.darkWood || giltMat;
+      for (const sx of [-1, 1]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(.07, 2.3, .07), legM); leg.position.set(sx * (w / 2 + .05), -.65, -.12); leg.rotation.z = sx * .05; g.add(leg); }
+      const back = new THREE.Mesh(new THREE.BoxGeometry(.06, 2.1, .06), legM); back.position.set(0, -.7, -.45); back.rotation.x = -.32; g.add(back);
+      const ledge = new THREE.Mesh(new THREE.BoxGeometry(w + .3, .06, .16), brassMat); ledge.position.set(0, -h / 2 - .1, .02); g.add(ledge);
+      if (o.poolMat) { const pool = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), o.poolMat); pool.rotation.x = -Math.PI / 2; pool.position.set(0, -1.77, .6); g.add(pool); }
+    } else { const p = WF(f, -.62, v); g.position.set(p.x, 2.35, p.z); g.rotation.y = -f.th; world.add(g); }
     const fr = .08;
     const frame = new THREE.Mesh(new THREE.BoxGeometry(w + 2 * fr, h + 2 * fr, .07), giltMat); frame.position.z = .035; g.add(frame);
     const lin = new THREE.Mesh(new THREE.PlaneGeometry(w + .03, h + .03), new THREE.MeshBasicMaterial({ color: 0x1a120a })); lin.position.z = .071; g.add(lin);
     const tex = u => { const t = TL.load(u); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
     const mk = (map, z, tr) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: .42, roughness: .8, envMapIntensity: .2, transparent: tr }));
-    const empty = mk(tex(a.empty), 0, false); empty.position.z = .074; g.add(empty);
-    const full = mk(tex(a.full), 0, true); full.position.z = .076; g.add(full);
+    // 2026-10-07 本人「生き物が飛び出しても絵からはいなくならない。絵には元の生き物が残ったまま、そこから写しが飛び出る」
+    const full = mk(tex(a.full), 0, false); full.position.z = .076; g.add(full); const empty = full;
     // 絵の上の真鍮の灯りと、下の小さな札（企画展のしるし）
     const bar = new THREE.Mesh(new THREE.BoxGeometry(Math.min(.9, w * .5), .05, .07), brassMat); bar.position.set(0, h / 2 + fr + .16, .2); g.add(bar);
     const label = o.labelCard(a, r, Math.max(.7, Math.min(1.25, w))); label.position.set(0, -h / 2 - fr - .17, .12); g.add(label);
     const it = { a, r, f, v, g, w, h, full, empty, frame, parts: [], state: "rest", t: 0, next: 8 + Math.random() * 25, mode: "show", wait: 0 };
-    full.userData = frame.userData = empty.userData = { anim: it }; clickables.push(full, frame, empty);
+    full.userData = frame.userData = { anim: it }; clickables.push(full, frame);
     const s = w / iw;
     for (const P of a.parts) {
       const [x0, y0, x1, y1] = P.box, bw = (x1 - x0) * s, bh = (y1 - y0) * s;
@@ -128,7 +140,7 @@ export function createExhibit(o) {
     // 鳥：円堂をひとまわり（案内のときは扉へ）
     if (door) { const up = p.clone().addScaledVector(n, 2).setY(st.alt * .8); pts.push(up, door.clone().setY(3.2)); return { kind: "curve", pts, hold: true }; }
     const a0 = Math.atan2(p.x, p.z), dirSign = k % 2 ? 1 : -1;
-    for (let j = 1; j <= 9; j++) { const a = a0 + dirSign * j / 9 * Math.PI * 2, rr = st.rad + Math.sin(j * 1.7) * .8; pts.push(V(Math.sin(a) * rr, st.alt + Math.sin(j * 2.1) * st.bob, Math.cos(a) * rr)); }
+    for (let j = 1; j <= 9; j++) { const a = a0 + dirSign * j / 9 * Math.PI * 2, rr = Math.min(st.rad, o.R - 3.4) + Math.sin(j * 1.7) * .7; pts.push(V(Math.sin(a) * rr, st.alt + Math.sin(j * 2.1) * st.bob, Math.cos(a) * rr)); }
     pts.push(p.clone().addScaledVector(n, 1.4).setY(p.y + .4), p.clone().addScaledVector(n, .6), p.clone());
     return { kind: "curve", pts };
   }
@@ -184,6 +196,7 @@ export function createExhibit(o) {
     else s = smooth(s);
     if (pt.path.hold && s >= 1) { pt.hold = true; }
     if (it.mode === "show-back") grow(pt, s, true); else if (pt.path.hold) pt.sc = 1 + (pt.S - 1) * smooth(clamp01((s - .03) / .2)); else grow(pt, s);
+    fadeOp(pt, t, pt.path.hold ? 0 : s);
     const pos = pt.curve.getPointAt(Math.min(1, s)), F = pt.curve.getTangentAt(Math.min(.999, Math.max(.001, s)));
     orient(pt, pos, F, !!(st.wander || st.swim || st.dart));
     if (s >= 1 && !pt.path.hold) { pt.done = true; restAt(it, pt); }
@@ -194,7 +207,7 @@ export function createExhibit(o) {
     // 0〜.12：絵から床へ　.12〜.5：歩く／跳ぶ（行き）　.5〜.62：止まる　.62〜.88：もどる　.88〜1：絵へ
     let s = clamp01(t / D);
     if (it.mode === "guide" && !it.arrived && s > .5) { s = .5; it.t = .5 * D + pt.delay; }
-    grow(pt, s);
+    grow(pt, s); fadeOp(pt, t, s);
     let pos, F;
     if (s < .12) { const k = smooth(s / .12); pos = pt.curve.getPointAt(k); F = pt.curve.getTangentAt(Math.max(.01, Math.min(.99, k))); }
     else if (s < .88) {
@@ -216,6 +229,8 @@ export function createExhibit(o) {
     return s >= 1;
   }
   const grow = (pt, s, back) => { const k = back ? smooth(clamp01((.8 - s) / .35)) : smooth(clamp01((s - .03) / .12)) * smooth(clamp01((.97 - s) / .12)); pt.sc = 1 + (pt.S - 1) * k; };
+  // 写しが絵から「抜け出てくる」：出はじめに浮かび上がり、もどりきる前に絵へ溶ける
+  const fadeOp = (pt, t, s) => { pt.mat.uniforms.uOp.value = Math.min(1, t / .7) * (1 - smooth(clamp01((s - .94) / .06))); };
   const clamp01 = x => Math.max(0, Math.min(1, x)), smooth = x => x * x * (3 - 2 * x), easeDart = r => r < .35 ? smooth(r / .35) : 1;
 
   function tick(dt, T, active) {
@@ -230,8 +245,6 @@ export function createExhibit(o) {
       }
       it.t += dt;
       // 絵の中の姿を消す／もどす
-      const going = it.parts.every(pt => pt.done);
-      it.full.material.opacity += ((going ? 1 : 0) - it.full.material.opacity) * Math.min(1, dt * (going ? 4 : 6));
       let allDone = true, holding = false;
       for (const pt of it.parts) {
         if (pt.done) continue;
@@ -239,7 +252,7 @@ export function createExhibit(o) {
         tickPart(it, pt, dt, T); if (!pt.done) allDone = false;
       }
       if (holding && it.release) { it.release = false; for (const pt of it.parts) if (pt.hold) { pt.hold = false; returnFromDoor(it, pt); } }
-      if (allDone && it.state !== "rest") { it.state = "rest"; it.next = 25 + Math.random() * 35; for (const pt of it.parts) { pt.m.visible = false; } it.full.material.opacity = 1; onLanded?.(it); }
+      if (allDone && it.state !== "rest") { it.state = "rest"; it.next = 25 + Math.random() * 35; for (const pt of it.parts) { pt.m.visible = false; } onLanded?.(it); }
     }
   }
   function hover(pt, dt, T) {   // 扉の前で待つ（鳥は小さく輪を描き、魚はその場でくねる）
@@ -257,6 +270,6 @@ export function createExhibit(o) {
   // 案内：生きものが扉まで行って待つ。見る人が着いたら release() で絵へもどる
   function guide(it) { if (it.state !== "rest") return false; it.arrived = false; return start(it, "guide"); }
   function release(it) { it.release = true; it.arrived = true; }
-  function abort(it) { for (const pt of it.parts) { pt.m.visible = false; pt.done = true; pt.hold = false; } it.state = "rest"; it.full.material.opacity = 1; it.release = false; }
+  function abort(it) { for (const pt of it.parts) { pt.m.visible = false; pt.done = true; pt.hold = false; } it.state = "rest"; it.release = false; }
   return { items, tick, start, guide, release, abort, find: id => items.find(i => i.a.id === id) };
 }

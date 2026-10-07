@@ -26,28 +26,43 @@ const ease = (dt, r) => 1 - Math.exp(-dt * r);
 const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let mode = "start";            // start（入口の前の題）／walk（歩いている）
-let space = "museum";          // museum（美術館と入口の外）／library（地下の図書館）。同じ一つの 3D の世界
+let space = "museum";          // いま立っている所：museum／library（書架の部屋）。歩いて行き来する（tick で region から決める）
 
 // ---------------------------------------------------------------- 館の寸法
 //   2026-10-07 本人「入口から３dで制作してください。同じ３dモデルで中央にワープするところがあって、はじめは博物館に入って、ワープすると図書館に移動する」
 //   広間（hub）は十一角の円堂。正面（+z）が玄関、その両わきは壁、残りの八面から八つの部屋がのびる。まん中にワープ（光の輪）。図書館はその真下（y＝LIB.Y）
 const NF = 11, HA = Math.PI / NF;
-const R = 19, WALL_H = 6.2, LOBBY_H = 9, HALF = 5, BAY = 6.6, FOY = 4, DOOR = 3.0, FIN = 1.0, EYE = 1.6;
-const SPRING = 2.9;
+// 2026-10-07 本人「美術館をもう少し狭く：いまは広すぎる。部屋と通路を詰め……人が歩いて心地よい密度に（重厚さは保つ）」→ 円堂の半径 19→15、部屋の幅 10→8.4、景の間 6.6→5.6
+const R = 15, WALL_H = 6.2, LOBBY_H = 8.6, HALF = 4.2, BAY = 5.6, FOY = 3, DOOR = 2.5, FIN = .9, EYE = 1.6;
+const SPRING = 2.7;
 const VEST = 7, PORT = VEST + 5.5, STEPS = PORT + 2.4, PLAZA = STEPS + 34, PLAZA_Y = -1.2;
 const faceTh = k => Math.PI + k * 2 * HA;
 const mkFace = th => { const d = new THREE.Vector2(Math.sin(th), -Math.cos(th)); return { th, d, p: new THREE.Vector2(-d.y, d.x) }; };
 const ENT = mkFace(faceTh(0));
 const rooms = M.rooms.map((r, i) => {
   const f = mkFace(faceTh(i + 2));
-  const rows = Math.ceil(r.kei.length / 2), L = FOY + rows * BAY + 3;
-  r.kei.forEach((k, j) => { k.room = i; k.j = j; k.side = j % 2 ? 1 : -1; k.u = FOY + Math.floor(j / 2) * BAY + BAY / 2; });
+  // 区画（鳥・けもの…）ごとに、新しい列からはじめる（2026-10-07 本人「見てすぐ分かる区画にする」）。左右に一景ずつ
+  let row = 0, col = 0, prevG = null;
+  r.kei.forEach((k, j) => {
+    if (prevG !== null && k.genre !== prevG && col === 1) { row++; col = 0; }
+    k.room = i; k.j = j; k.row = row; k.side = col ? 1 : -1; k.u = FOY + row * BAY + BAY / 2; prevG = k.genre;
+    if (++col === 2) { col = 0; row++; }
+  });
+  const rows = row + (col ? 1 : 0), L = FOY + rows * BAY + 3;
+  const keiAt = (rw, sd) => r.kei.find(k => k.row === rw && k.side === sd) || r.kei.find(k => k.row === rw) || null;
   const n = r.kei.reduce((a, k) => a + k.works.length, 0);
-  return Object.assign(r, f, { i, rows, L, n });
+  return Object.assign(r, f, { i, rows, L, n, keiAt });
 });
 const FACES = [ENT, mkFace(faceTh(1)), ...rooms, mkFace(faceTh(NF - 1))];
-const STELE = { x: 0, z: 9.5, w: 2.9, d: .34, r: 1.9 };
-const WARP = { x: 0, z: 0, r: .8, keep: 1.7 };
+// 書架の部屋（図書館）：円堂の玄関わきの面（FACES[1]）の扉の奥の一室。中の座標は library.js の LIB（+z が入口）
+const LIB_FACE = FACES[1];
+const LIBO = (() => { const p = new THREE.Vector3(LIB_FACE.d.x * (R + LIB.Z + .5), 0, LIB_FACE.d.y * (R + LIB.Z + .5)); return { p, th: Math.atan2(-LIB_FACE.d.x, -LIB_FACE.d.y) }; })();
+const libLocal = (x, z) => { const dx = x - LIBO.p.x, dz = z - LIBO.p.z, c = Math.cos(LIBO.th), s_ = Math.sin(LIBO.th); return { x: dx * c - dz * s_, z: dx * s_ + dz * c }; };
+const libWorld = v => { const c = Math.cos(LIBO.th), s_ = Math.sin(LIBO.th); return new THREE.Vector3(LIBO.p.x + v.x * c + v.z * s_, 0, LIBO.p.z - v.x * s_ + v.z * c); };
+const inLib = (x, z) => { const l = libLocal(x, z); return Math.abs(l.x) < LIB.X + .2 && l.z > -LIB.Z - .2 && l.z < LIB.Z + .55; };
+const STELE = { x: 0, z: 7.4, w: 2.9, d: .34, r: 1.9 };
+const WARP = { x: 0, z: 0, r: -1, keep: 0 };   // 光の輪（ワープ）は 2026-10-07 にやめた（本人「中央の図書館へのワープは不要」）
+const OBST = [];   // 円堂の中の置きもの（企画展の台など）：{x, z, r}
 const inStele = (x, z, m = .4) => Math.abs(x - STELE.x) < STELE.w / 2 + m && Math.abs(z - STELE.z) < STELE.d / 2 + m;
 const RR = R / Math.cos(HA);
 const COLS = Array.from({ length: NF }, (_, k) => { const a = faceTh(k) + HA; return new THREE.Vector2(Math.sin(a) * (RR - 1.0), -Math.cos(a) * (RR - 1.0)); });
@@ -57,35 +72,37 @@ const E = (u, v = 0) => WF(ENT, u, v);
 const entLocal = (x, z) => ({ u: x * ENT.d.x + z * ENT.d.y - R, v: x * ENT.p.x + z * ENT.p.y });
 const PCOLS = [2.8, 7.6, 12.4].flatMap(v => [v, -v]);
 function local(x, z) {
-  if (space === "library") return null;
   let best = null;
   for (const r of rooms) { const a = x * r.d.x + z * r.d.y - R, b = x * r.p.x + z * r.p.y; if (a > -2.5 && Math.abs(b) < HALF + .5 && (!best || a > best.u)) best = { i: r.i, u: a, v: b }; }
   return best;
 }
 function region(x, z) {
-  if (space === "library") return { kind: "library" };
+  if (inLib(x, z)) return { kind: "library" };
   const e = entLocal(x, z); if (e.u > -.35 && Math.abs(e.v) < 40) return { kind: "entrance", u: e.u, v: e.v };
   const l = local(x, z);
   if (l && l.u > -0.35) return { kind: "room", ...l };
   return { kind: "lobby", l };
 }
 function groundY(x, z) {
-  if (space === "library") return LIB.Y;
+  if (inLib(x, z)) return 0;
   const e = entLocal(x, z);
   if (e.u <= PORT) return 0;
   return e.u >= STEPS ? PLAZA_Y : PLAZA_Y * (e.u - PORT) / (STEPS - PORT);
 }
 function walkable(x, z, wallGap = 1.6) {
-  if (space === "library") return libWalkable(x, z) && Math.hypot(x - WARP.x, z - WARP.z) > (walkable.warpOK ? 0 : .5);
+  if (inLib(x, z)) { const l = libLocal(x, z); return libWalkable(l.x, l.z); }
   const e = entLocal(x, z);
   if (e.u > -.6) {                                                       // 玄関の間・扉・柱廊・階段・前庭
     if (e.u < VEST - .3) return Math.abs(e.v) < DOOR - .55;
+    return false;   // 外へは出ない（2026-10-07）
     if (e.u < VEST + 1.1) return Math.abs(e.v) < 1.5;
     if (e.u < PORT) return Math.abs(e.v) < 14.5 && PCOLS.every(v => Math.hypot(e.u - (VEST + 4.2), e.v - v) > 1.0);
     return e.u < PLAZA && Math.abs(e.v) < (e.u < STEPS ? 14.5 : 22);
   }
-  let inLobby = true; for (const f of FACES) if (x * f.d.x + z * f.d.y > R - 1.0) inLobby = false;
-  if (inLobby) return !inStele(x, z) && COLS.every(c => Math.hypot(x - c.x, z - c.y) > 1.05);
+  let inLobby = true, libDoorway = false;
+  for (const f of FACES) if (x * f.d.x + z * f.d.y > R - 1.0) { if (f === LIB_FACE && Math.abs(x * f.p.x + z * f.p.y) < LIB.DOOR - .4) libDoorway = true; else inLobby = false; }
+  if (libDoorway && inLobby) return true;
+  if (inLobby) return !inStele(x, z) && COLS.every(c => Math.hypot(x - c.x, z - c.y) > 1.05) && OBST.every(o => Math.hypot(x - o.x, z - o.z) > o.r);
   const l = local(x, z); if (!l) return false; const r = rooms[l.i];
   if (l.u < 0.25) return l.u > -1.2 && Math.abs(l.v) < DOOR - .5;
   if (l.u > r.L - .5) return false;
@@ -120,7 +137,7 @@ const PART = {
 };
 
 // ---------------------------------------------------------------- three の場
-const stage = $("stage");
+const stage = $("stage"); stage.setAttribute("role", "img"); stage.setAttribute("aria-label", "館の中の 3D の眺め。操作は下のボタンと、碧のことばから");
 const renderer = new THREE.WebGLRenderer({ antialias: !isTouch || devicePixelRatio < 2, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouch ? 1.5 : 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -252,20 +269,21 @@ const putF = (tag, mat, geo, f, u, v, y, rotY) => { const p = WF(f, u, v); p.y =
   const f = new THREE.Mesh(g, lobbyFloorMat); f.rotation.x = -Math.PI / 2; world.add(f); floors.push(f);
   const face = 2 * R * Math.tan(HA);
   FACES.forEach((F, k) => {
-    const room = rooms.includes(F) ? F : null, open = room || F === ENT;
+    const room = rooms.includes(F) ? F : null, isLib = F === LIB_FACE, open = room || F === ENT || isLib;
+    const DW = isLib ? LIB.DOOR : DOOR, SP = isLib ? 3.4 - LIB.DOOR : SPRING;
     const s = new THREE.Shape(); s.moveTo(-face / 2 - .3, 0); s.lineTo(face / 2 + .3, 0); s.lineTo(face / 2 + .3, LOBBY_H); s.lineTo(-face / 2 - .3, LOBBY_H); s.closePath();
-    if (open) { const hole = new THREE.Path(); hole.moveTo(-DOOR, 0); hole.lineTo(DOOR, 0); hole.lineTo(DOOR, SPRING); hole.absarc(0, SPRING, DOOR, 0, Math.PI, false); hole.lineTo(-DOOR, 0); s.holes.push(hole); }
+    if (open) { const hole = new THREE.Path(); hole.moveTo(-DW, 0); hole.lineTo(DW, 0); hole.lineTo(DW, SP); hole.absarc(0, SP, DW, 0, Math.PI, false); hole.lineTo(-DW, 0); s.holes.push(hole); }
     const eg = new THREE.ExtrudeGeometry(s, { depth: .5, bevelEnabled: false, curveSegments: 20 });
     const ua = eg.attributes.uv; for (let q = 0; q < ua.count; q++) ua.setXY(q, ua.getX(q) / 2.2, ua.getY(q) / 2.2);
     putF("stone", stoneMat, eg, F, 0, 0, 0, -F.th);
-    for (const sx of [-1, 1]) putF("stone2", marbleMat, new THREE.BoxGeometry((face - 2 * DOOR) / 2 - .3, .9, .1), F, -.53, sx * (DOOR + (face - 2 * DOOR) / 4 + .15), .45, -F.th);
+    for (const sx of [-1, 1]) putF("stone2", marbleMat, new THREE.BoxGeometry((face - 2 * DW) / 2 - .3, .9, .1), F, -.53, sx * (DW + (face - 2 * DW) / 4 + .15), .45, -F.th);
     if (open) {
-      putF("stone2", marbleMat, new THREE.TorusGeometry(DOOR + .08, .13, 8, 28, Math.PI), F, -.52, 0, SPRING, -F.th);
-      for (const sx of [-1, 1]) putF("stone2", marbleMat, new THREE.BoxGeometry(.32, SPRING, .14), F, -.52, sx * (DOOR + .08), SPRING / 2, -F.th);
-      putF("stone2", marbleMat, new THREE.BoxGeometry(.5, .7, .24), F, -.55, 0, SPRING + DOOR + .05, -F.th);
+      putF("stone2", marbleMat, new THREE.TorusGeometry(DW + .08, .13, 8, 28, Math.PI), F, -.52, 0, SP, -F.th);
+      for (const sx of [-1, 1]) putF("stone2", marbleMat, new THREE.BoxGeometry(.32, SP, .14), F, -.52, sx * (DW + .08), SP / 2, -F.th);
+      putF("stone2", marbleMat, new THREE.BoxGeometry(.5, .7, .24), F, -.55, 0, SP + DW + .05, -F.th);
     }
     // 扉の上の題字（石に刻んだ）。部屋の名／玄関は館の名／壁の面は館の名と英語
-    const title = room ? room.name : NAMES.museum, sub = room ? room.desc : F === ENT ? "出口 ・ 玄関へ" : NAMES.museum_en;
+    const title = room ? room.name : isLib ? NAMES.library : NAMES.museum, sub = room ? room.desc : isLib ? "本を手にとって読む部屋" : F === ENT ? "出口 ・ 玄関へ" : NAMES.museum_en;
     const t = textPlane(4.8, .95, (c, w, h) => {
       c.fillStyle = "rgba(60,44,26,.12)"; c.fillRect(0, 0, w, h);
       c.strokeStyle = "rgba(120,92,52,.65)"; c.lineWidth = 6; c.strokeRect(6, 6, w - 12, h - 12);
@@ -273,8 +291,9 @@ const putF = (tag, mat, geo, f, u, v, y, rotY) => { const p = WF(f, u, v); p.y =
       c.fillStyle = "#6b5332"; fit(c, sub, w * .86, `%px ${GOTH}`, 32); c.fillText(sub, w / 2, h * .82);
       if (room) { c.fillStyle = room.acc; c.fillRect(w / 2 - 60, h - 20, 120, 6); }
     }, 1024);
-    const p = WF(F, -.53, 0); t.position.set(p.x, open ? 6.7 : 4.2, p.z); t.rotation.y = -F.th; world.add(t);
-    putF("brass", brassMat, new THREE.BoxGeometry(2.2, .06, .05), F, -.54, 0, open ? 7.25 : 4.8, -F.th);
+    const ty = isLib ? 4.6 : open ? 6.4 : 4.2;
+    const p = WF(F, -.53, 0); t.position.set(p.x, ty, p.z); t.rotation.y = -F.th; world.add(t);
+    putF("brass", brassMat, new THREE.BoxGeometry(2.2, .06, .05), F, -.54, 0, ty + .55, -F.th);
     putF("wood", darkWood, new THREE.BoxGeometry(face + .8, .5, .7), F, -.7, 0, LOBBY_H - .25, -F.th);
   });
   for (const c of COLS) {
@@ -313,8 +332,7 @@ function makeWarp(y, label) {
   warps.push({ g, disc, ring });
   return g;
 }
-makeWarp(0, `${NAMES.library}へ ─ 光の輪をふむ`);
-makeWarp(LIB.Y, `${NAMES.museum}へ ─ 光の輪をふむ`);
+// 光の輪（ワープ）は 2026-10-07 にやめた。図書館は円堂の扉の奥の一室
 
 // 入口の外：玄関の間・正面（柱廊・破風・扉）・階段・前庭・街灯・木・空
 {
@@ -324,7 +342,7 @@ makeWarp(LIB.Y, `${NAMES.museum}へ ─ 光の輪をふむ`);
   { const p = E(VEST / 2); p.y = 6.6; put("ceilv", darkWood, new THREE.PlaneGeometry(2 * DOOR + .8, VEST), p, -ENT.th, Math.PI / 2); }
   for (let u = .6; u < VEST; u += 1.4) putF("wood", darkWood, new THREE.BoxGeometry(2 * DOOR + .8, .3, .22), ENT, u, 0, 6.45, -ENT.th);
   // 正面の壁（扉の穴）
-  const FW = 18, FH = 15;
+  const FW = 3.4, FH = 7.4;   // 2026-10-07：外へは出ないので、正面の壁は扉のまわりだけ（書架の部屋とぶつからないように）
   const s = new THREE.Shape(); s.moveTo(-FW, 0); s.lineTo(FW, 0); s.lineTo(FW, FH); s.lineTo(-FW, FH); s.closePath();
   const hole = new THREE.Path(); hole.moveTo(-2.2, 0); hole.lineTo(2.2, 0); hole.lineTo(2.2, 3.6); hole.absarc(0, 3.6, 2.2, 0, Math.PI, false); hole.lineTo(-2.2, 0); s.holes.push(hole);
   const fg = new THREE.ExtrudeGeometry(s, { depth: .8, bevelEnabled: false, curveSegments: 20 }); const fu = fg.attributes.uv; for (let q = 0; q < fu.count; q++) fu.setXY(q, fu.getX(q) / 2.2, fu.getY(q) / 2.2);
@@ -340,21 +358,7 @@ makeWarp(LIB.Y, `${NAMES.museum}へ ─ 光の輪をふむ`);
     for (let y = .8; y < 5.4; y += 1.1) for (let x = .35; x < 2.1; x += .55) { const st = new THREE.Mesh(new THREE.SphereGeometry(.035, 6, 4), brassMat); st.position.set(-sgn * x, y, .08); pivot.add(st); }
     ctxDoors.push({ pivot, sgn });
   }
-  // 柱廊の床（基壇）・階段・前庭
-  { const p = E((VEST + .8 + PORT) / 2); p.y = -.6; put("stone", stoneMat, boxUV(36, 1.2, PORT - VEST - .8, 2.2), p, -ENT.th); }
-  for (let k = 0; k < 4; k++) { const u0 = PORT + k * .6, p = E(u0 + .3); p.y = -.3 * (k + 1) - .3; put("stone2", marbleMat, new THREE.BoxGeometry(31, .6, .6), p, -ENT.th); }
-  for (const v of PCOLS) {
-    const p = E(VEST + 4.2, v);
-    put("marble", marbleMat, new THREE.CylinderGeometry(.55, .62, 10.4, 20), new THREE.Vector3(p.x, 5.2 + .3, p.z));
-    put("stone2", marbleMat, new THREE.BoxGeometry(1.5, .4, 1.5), new THREE.Vector3(p.x, .2, p.z));
-    put("stone2", marbleMat, new THREE.BoxGeometry(1.45, .5, 1.45), new THREE.Vector3(p.x, 10.7, p.z));
-  }
-  { const p = E((VEST + .8 + PORT) / 2 + .3); p.y = 11.6; put("stone", stoneMat, boxUV(31.5, 1.4, PORT - VEST + .2, 2.2), p, -ENT.th); }
-  const tri = new THREE.Shape(); tri.moveTo(-16, 0); tri.lineTo(16, 0); tri.lineTo(0, 3.6); tri.closePath();
-  const tg = new THREE.ExtrudeGeometry(tri, { depth: 1.2, bevelEnabled: false }); const tu = tg.attributes.uv; for (let q = 0; q < tu.count; q++) tu.setXY(q, tu.getX(q) / 2.2, tu.getY(q) / 2.2);
-  { const p = E(PORT - .6); p.y = 12.3; put("stone", stoneMat, tg, p, Math.PI - ENT.th); }
-  const ins = textPlane(16, 1.1, (c, w, h) => { c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#4a3820"; fit(c, NAMES.museum, w * .5, `600 %px ${MINCHO}`, Math.round(h * .62)); c.fillText(NAMES.museum, w * .5, h * .42); c.fillStyle = "#6b5332"; fit(c, `${NAMES.museum_en.toUpperCase()}　・　${NAMES.library}　${NAMES.library_en.toUpperCase()}`, w * .9, `%px ${GOTH}`, Math.round(h * .2)); c.fillText(`${NAMES.museum_en.toUpperCase()}　・　${NAMES.library}　${NAMES.library_en.toUpperCase()}`, w * .5, h * .86); }, 2048);
-  { const p = E(PORT + .32); ins.position.set(p.x, 11.6, p.z); ins.rotation.y = Math.PI - ENT.th; world.add(ins); }
+  // 柱廊・階段・破風は 2026-10-07 に外した（はじめから館の中に立つので、外は見えない。書架の部屋の場所をあけた）
   // 前庭（石畳）と、まわりの地面
   const gm = new THREE.MeshStandardMaterial({ map: T_STONE, color: 0x9a8a74, roughness: .95 });
   const gr = new THREE.Mesh(planeUV(500, 500, 3), gm); gr.rotation.x = -Math.PI / 2; gr.position.y = PLAZA_Y - .01; world.add(gr); floors.push(gr);
@@ -378,6 +382,7 @@ makeWarp(LIB.Y, `${NAMES.museum}へ ─ 光の輪をふむ`);
   sky.renderOrder = -10; world.add(sky); SKY.mesh = sky;
 }
 
+const ZONE_COL = ["#b0703a", "#5f8a4a", "#3f7a9a", "#8a5a7a", "#a08a3a", "#4a8a7a", "#7a7a7a"];
 // 部屋：寄木の床と絨毯・漆喰の壁と木の腰板・真鍮の手すり・軒・高窓・格天井と天窓・袖壁（ベイの区切り）・題字
 const roomMats = [];
 for (const r of rooms) {
@@ -438,6 +443,20 @@ for (const r of rooms) {
   }, 1024);
   { const p = W(i, L - .02, 0); t.position.set(p.x, 2.6, p.z); t.rotation.y = Math.PI - r.th; world.add(t); }
   for (const k of r.kei) makeBay(r, k);
+  // 区画（鳥・けもの…）：区画のはじまりに吊り札、床の縁に区画の色の帯（2026-10-07 本人「見てすぐ分かる区画にする（床の色・棚・札・照明・音で区切る）」）
+  (r.zones || []).forEach((z, zi) => {
+    const ks = r.kei.filter(k => k.genre === zi); if (!ks.length) return;
+    const r0 = Math.min(...ks.map(k => k.row)), r1 = Math.max(...ks.map(k => k.row)), u0 = FOY + r0 * BAY, u1 = FOY + (r1 + 1) * BAY, col = ZONE_COL[zi % ZONE_COL.length];
+    z.u0 = u0; z.u1 = u1; z.col = col;
+    for (const sx of [-1, 1]) { const st = new THREE.Mesh(new THREE.PlaneGeometry(.16, u1 - u0 - .3), new THREE.MeshStandardMaterial({ color: col, roughness: .7 })); const c = W(i, (u0 + u1) / 2, sx * 1.42); st.rotation.set(-Math.PI / 2, 0, rot); st.position.set(c.x, .006, c.z); world.add(st); }
+    if (r.zones.length < 2) return;
+    const t = textPlane(2.6, .62, (g, w, h) => { g.fillStyle = "rgba(24,17,10,.92)"; g.fillRect(0, 0, w, h); g.fillStyle = col; g.fillRect(0, 0, 18, h); g.fillRect(w - 18, 0, 18, h);
+      g.strokeStyle = "#c9a45c"; g.lineWidth = 5; g.strokeRect(3, 3, w - 6, h - 6); g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillStyle = "#f3e7cf"; fit(g, z.name, w * .8, `600 %px ${MINCHO}`, Math.round(h * .5)); g.fillText(z.name, w / 2, h * .42);
+      g.fillStyle = "#d8c9a8"; fit(g, `${z.sub}　${ks.length} 景`, w * .8, `%px ${GOTH}`, Math.round(h * .2)); g.fillText(`${z.sub}　${ks.length} 景`, w / 2, h * .8); }, 1024);
+    const c = W(i, u0 + .25, 0); t.position.set(c.x, 4.15, c.z); t.rotation.y = Math.PI - r.th; t.material.side = THREE.DoubleSide; world.add(t);
+    for (const sx of [-1, 1]) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, WALL_H - 4.46, 4), brassMat); const q = W(i, u0 + .25, sx * 1.1); ch.position.set(q.x, 4.46 + (WALL_H - 4.46) / 2, q.z); world.add(ch); }
+  });
 }
 flush();
 
@@ -473,14 +492,14 @@ const featBay = (() => {
 
 // 企画展「絵から出てくる生きもの」（2026-10-07 本人）：円堂の扉のわき（その部屋の生きもの）と、左右の壁。素材は data/anim.js（CC0／PD だけ）
 const animWork = a => { const r = rooms.find(x => x.slug === a.room), k = r?.kei.find(x => x.id === a.kei); return { r, k, w: k?.works[a.wi] }; };
-const EX = createExhibit({ THREE, world, rooms, FACES, WF, clickables, giltMat, brassMat, camera, getRM: () => RM,
+const EX = createExhibit({ THREE, world, rooms, FACES, WF, R, OBST, darkWood, poolMat, clickables, giltMat, brassMat, camera, getRM: () => RM,
   labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm), onLanded: it => { if (guideIt === it) guideIt = null; } });
 let guideIt = null;
 function animTapped(it) {
   if (tour.on && !tour.susp) suspendTour();
   intro.tok++; closeAll();
   const { k, w } = animWork(it.a), L = (T.anim || {})[it.a.id] || {};
-  const stand = WF(it.f, -3.4, it.v), look = WF(it.f, 0, it.v);
+  const n = new THREE.Vector3(0, 0, 1).applyQuaternion(it.g.quaternion), look = it.g.position.clone().setY(0), stand = look.clone().addScaledVector(n, 2.9);
   const acts = [["ついて行く", () => followAnim(it), true], ["札をひらく", () => k && openPanel(k, w)], ["自由に歩く", () => freeTalk(T.idle.free)]];
   goTo(stand, look, () => { if (!RM) EX.start(it, "show"); talk([L.work, L.come].filter(Boolean), acts); });
 }
@@ -492,8 +511,20 @@ function followAnim(it) {   // 生きものが扉まで行き、見る人がつ�
   go();
 }
 
-// 図書館（地下・同じ世界）
-const LIBW = buildLibrary({ THREE, world, put, flush, mats: { parquet, darkWood, woodMat, brassMat, poolMat, paperEdge: new THREE.MeshStandardMaterial({ color: 0xefe4c8, roughness: .8 }) },
+// 図書館（書架の部屋）：円堂の扉の奥。部屋の中の座標で建てて、箱ごと置く
+const libG = new THREE.Group(); libG.position.copy(LIBO.p); libG.rotation.y = LIBO.th; world.add(libG);
+const LB = new Map();
+function libPut(tag, mat, geo, pos, rotY = 0, rotX = 0) {
+  _e.set(rotX, rotY, 0, "YXZ"); _q.setFromEuler(_e); _m.compose(pos, _q, _s);
+  const g = (geo.index ? geo.toNonIndexed() : geo); g.applyMatrix4(_m);
+  for (const k of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(k)) g.deleteAttribute(k);
+  const kk = tag + "|" + mat.uuid; if (!LB.has(kk)) LB.set(kk, { mat, geos: [], tag }); LB.get(kk).geos.push(g);
+}
+function libFlush() {
+  for (const { mat, geos, tag } of LB.values()) { const m = new THREE.Mesh(mergeGeometries(geos, false), mat); m.userData.tag = tag; libG.add(m); if (/wall|wood/.test(tag)) blockers.push(m); if (/ceil/.test(tag)) ceils.push(m); }
+  LB.clear();
+}
+const LIBW = buildLibrary({ THREE, world: libG, put: libPut, flush: libFlush, mats: { parquet, darkWood, woodMat, brassMat, poolMat, paperEdge: new THREE.MeshStandardMaterial({ color: 0xefe4c8, roughness: .8 }) },
   TX, textPlane, fit, rooms, NAMES, clickables, floors, isTouch, MINCHO, GOTH });
 
 function makeBay(r, k) {
@@ -504,10 +535,10 @@ function makeBay(r, k) {
   const imgs = k.works.filter(w => w.f), rep = imgs.find(w => fname(w.f) === fname(k.rep)) || imgs[0];
   const others = imgs.filter(w => w !== rep), bun = k.works.find(w => !w.f);
   const slots = [];
-  if (rep) slots.push({ w: rep, x: 0, y: 2.1, mw: 2.3, mh: 1.6, big: true });
-  if (others[0]) slots.push({ w: others[0], x: -2.15, y: 2.0, mw: 1.05, mh: 1.2 });
-  if (bun) slots.push({ w: bun, x: 2.15, y: 2.0, quote: true });
-  else if (others[1]) slots.push({ w: others[1], x: 2.15, y: 2.0, mw: 1.05, mh: 1.2 });
+  if (rep) slots.push({ w: rep, x: 0, y: 2.1, mw: 2.0, mh: 1.55, big: true });
+  if (others[0]) slots.push({ w: others[0], x: -1.95, y: 2.0, mw: .92, mh: 1.15 });
+  if (bun) slots.push({ w: bun, x: 1.95, y: 2.0, quote: true });
+  else if (others[1]) slots.push({ w: others[1], x: 1.95, y: 2.0, mw: .92, mh: 1.15 });
   const bay = { k, r, g, slots, loaded: false, near: false, title: null, center: base.clone(), facing };
   for (const sl of slots) {
     const ph = new THREE.Mesh(new THREE.PlaneGeometry(sl.quote ? 1.1 : sl.mw * .8, sl.quote ? 1.25 : sl.mh * .8), new THREE.MeshBasicMaterial({ color: 0x2a2018, transparent: true, opacity: .55 }));
@@ -660,18 +691,36 @@ function setZone(z, quiet) {
   const r = z.i != null ? rooms[z.i] : null;
   const lib_ = z.key === "library", out = z.key === "outside";
   $("rcK").textContent = r ? `第${"一二三四五六七八九十"[z.i] || z.i + 1}室` : lib_ ? NAMES.library_en : NAMES.museum_en;
-  $("rcB").textContent = r ? r.name : lib_ ? NAMES.library : out ? NAMES.museum : NAMES.hub; $("rcS").textContent = r ? r.desc : lib_ ? `${NAMES.series}の${rooms.length}冊` : out ? "入口の前" : `${rooms.length}つの部屋と、${NAMES.library}への光の輪`;
+  $("rcB").textContent = r ? r.name : lib_ ? NAMES.library : out ? NAMES.museum : NAMES.hub; $("rcS").textContent = r ? r.desc : lib_ ? `${NAMES.series}の${rooms.length}冊` : out ? "入口の前" : `${rooms.length}つの部屋と、${NAMES.library}`;
   const rc = $("roomCard"); rc.classList.add("on"); clearTimeout(setZone.t); setZone.t = setTimeout(() => rc.classList.remove("on"), 2600);
   if (r && mode === "walk" && !(tour.on && !tour.susp) && !seen.rooms.has(r.i)) {
     seen.rooms.add(r.i); const I = T.rooms[r.i].intro;
-    setTimeout(() => { if (zone.i === r.i && !SP.resolve) { freeTalk([I[0], ...I.slice(3)]); talkKind = "greet"; } }, 900);
+    const amb = I.filter(x => /^(いま聞こえて|流れているのは)/.test(x));
+    setTimeout(() => { if (zone.i === r.i && !SP.resolve) { freeTalk([I[0], T.rooms[r.i].zones, ...amb].filter(Boolean)); talkKind = "greet"; } }, 900);
   }
+  if (r && mode === "walk") showZones(r);
+  else hideZones();
 }
+// この部屋の一覧と地図（2026-10-07 本人「部屋に入ったら、AR のように空中に『この部屋の一覧と地図』が浮かび、気になるジャンルを押すとそこへ飛べる」）
+function showZones(r) {
+  const el = $("zones"); if (!r.zones?.length) { hideZones(); return; }
+  const n = r.zones.length;
+  el.innerHTML = `<div class="zh"><b>${esc(r.name)}</b><small>手前から奥へ　${n} の区画</small><button class="ico x" aria-label="区画の一覧を閉じる">✕</button></div>
+    <div class="zplan" aria-hidden="true">${r.zones.map(z => `<i style="flex:${z.ids.length};background:${z.col || "#777"}"></i>`).join("")}</div>
+    <div class="zl" role="list">${r.zones.map((z, zi) => `<button role="listitem" data-z="${zi}" style="--c:${z.col || "#777"}"><b>${esc(z.name)}</b><small>${esc(z.sub)}・${z.ids.length} 景</small></button>`).join("")}</div>`;
+  el.hidden = false; requestAnimationFrame(() => el.classList.add("on"));
+  el.querySelector(".x").onclick = hideZones;
+  el.querySelectorAll("[data-z]").forEach(b => b.onclick = () => { const z = r.zones[+b.dataset.z]; hideZones(); if (tour.on && !tour.susp) suspendTour(); intro.tok++; walkTo(W(r.i, z.u0 + 1.0, 0)); me.faceTo = W(r.i, z.u1 + 4, 0); });
+  clearTimeout(showZones.t); showZones.t = setTimeout(hideZones, 14000);
+}
+function hideZones() { const el = $("zones"); el.classList.remove("on"); clearTimeout(showZones.t); setTimeout(() => { if (!el.classList.contains("on")) el.hidden = true; }, 400); }
+
 // ---------------------------------------------------------------- 自由に歩いて、気になる作品の前で立ち止まると、碧がその景の話をする（2026-10-07 本人「自由に動いて、気になる作品を碧が解説という設計に」）
 const seen = { rooms: new Set(), bays: new Set(), books: new Set() };
 let talkKind = "";   // いま話していることの種類（"greet"＝部屋のあいさつ。作品の前で止まったら、あいさつは途中でやめて作品の話へ）
 const explore = { still: 0, bay: null };
 function exploreTick(dt) {
+  if (OTO) return;   // 音で巡る館では、立ち止まって話すのは「次へ」のときだけ
   if (explore.bay && SP.resolve) {   // 話の途中で離れたら、話をやめる
     if (Math.hypot(me.pos.x - explore.bay.center.x, me.pos.z - explore.bay.center.z) > 8.5) { hush(); explore.bay = null; A.goal = null; A.look = null; }
   }
@@ -691,12 +740,20 @@ function exploreTick(dt) {
 function explainBay(b) {
   seen.bays.add(b); explore.bay = b; talkKind = "bay";
   const K = T.rooms[b.r.i].kei[b.k.j], narrow = innerWidth / innerHeight < .8, inv = new THREE.Vector3(me.pos.x, 0, me.pos.z).sub(b.center).applyAxisAngle(new THREE.Vector3(0, 1, 0), -b.facing);
-  A.goal = new THREE.Vector3(inv.x < -.8 ? (narrow ? .95 : 2.95) : (narrow ? -.95 : -2.95), 0, narrow ? 1.35 : 1.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), b.facing).add(b.center);
+  A.goal = new THREE.Vector3(inv.x < -.8 ? (narrow ? .95 : 2.6) : (narrow ? -.95 : -2.6), 0, narrow ? 1.35 : 1.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), b.facing).add(b.center);
   A.look = b.center.clone();
   curActs = () => [["札をひらく", () => openPanel(b.k, b.slots[0]?.w), true], ["⏭", skipLine, false, "このことばをとばす"], ["部屋をえらぶ", openMap]];
   setActs(curActs()); $("guide").hidden = false; if ($("guide").classList.contains("folded")) fold(false);
   sayQ([...K.lines, K.side], { before: (t, n) => { A.point = n === 1 ? 1 : 0; A.talkT = 0; } }).then(ok => { if (ok) { A.point = 0; curActs = freeActs; setActs(freeActs()); } });
 }
+// 円堂の光は、見ている人の時刻で変わる（朝は白く、昼は明るく、夕方は金色、夜は月の青）。2026-10-07「現実の美術館にない体験」の一つ
+const HOUR_LIGHT = (() => {
+  const h = new Date().getHours() + new Date().getMinutes() / 60;
+  const P = [[5, 0xbfd0ff, .8, .88], [8, 0xfff4e0, 1.05, 1.0], [12, 0xfffaf0, 1.15, 1.04], [16, 0xffe2b0, 1.05, 1.0], [18.5, 0xffb070, .95, .97], [20, 0x8090c0, .75, .9], [29, 0xbfd0ff, .8, .88]];
+  const hh = h < 5 ? h + 24 : h; let a = P[0], b = P[1]; for (let k = 0; k < P.length - 1; k++) if (hh >= P[k][0] && hh < P[k + 1][0]) { a = P[k]; b = P[k + 1]; }
+  const t = (hh - a[0]) / (b[0] - a[0]); return { kc: new THREE.Color(a[1]).lerp(new THREE.Color(b[1]), t).getHex(), ki: a[2] + (b[2] - a[2]) * t, exp: a[3] + (b[3] - a[3]) * t, h };
+})();
+ATMO.lobby = { ...ATMO.lobby, kc: HOUR_LIGHT.kc, ki: ATMO.lobby.ki * HOUR_LIGHT.ki, exp: ATMO.lobby.exp * HOUR_LIGHT.exp };
 function atmoTick(dt) {
   const A = ATMO[zone.key] || ATMO.lobby, k = ease(dt, 1.4);
   AC.hs.lerp(new THREE.Color(A.hs), k); AC.hg.lerp(new THREE.Color(A.hg), k); AC.kc.lerp(new THREE.Color(A.kc), k); AC.fog.lerp(new THREE.Color(A.fog), k);
@@ -769,7 +826,7 @@ function setTalking(on) {
   clearTimeout(SP.foldT);
   if (on) { if (SP.autoFolded) { SP.autoFolded = false; fold(false); } }
   else SP.foldT = setTimeout(() => {
-    if ($("guide").classList.contains("talking") || SP.paused || (tour.on && !tour.susp) || document.body.classList.contains("reading-aloud") || $("guide").classList.contains("folded")) return;
+    if (OTO || $("guide").classList.contains("talking") || SP.paused || (tour.on && !tour.susp) || document.body.classList.contains("reading-aloud") || $("guide").classList.contains("folded")) return;
     fold(true); SP.autoFolded = true;
   }, 4200);
 }
@@ -824,7 +881,9 @@ function resize() { renderer.setSize(innerWidth, innerHeight); setFov(); drawMin
 addEventListener("resize", resize);
 function route(to, toWarp) {
   const a = region(me.pos.x, me.pos.z), b = region(to.x, to.z), pts = [];
-  if (space === "museum") {
+  const libOut = WF(LIB_FACE, -1.8, 0), libIn = libWorld(new THREE.Vector3(0, 0, LIB.Z - 1.4));
+  if (a.kind === "library" && b.kind !== "library") pts.push(libIn, libOut);
+  {
     const door = (i, u) => W(i, u, 0);
     if (a.kind === "entrance" && b.kind !== "entrance") { if (a.u > VEST - .3) pts.push(E(Math.max(VEST + 1.8, Math.min(a.u, VEST + 1.8)), 0), E(VEST - 1)); pts.push(E(-1.8)); }
     if (a.kind === "room" && !(b.kind === "room" && b.i === a.i)) { pts.push(door(a.i, Math.max(1.2, Math.min(a.u, 1.2))), door(a.i, -1.8)); }
@@ -832,14 +891,25 @@ function route(to, toWarp) {
     if (b.kind === "entrance" && a.kind !== "entrance") { pts.push(E(-1.8), E(VEST - 1)); if (b.u > VEST) pts.push(E(VEST + 1.8)); }
     if (b.kind === "room" && Math.abs(b.v) > HALF - FIN - .5) { pts.push(W(b.i, b.u, Math.sign(b.v) * (HALF - FIN - .6))); }
   }
+  if (b.kind === "library" && a.kind !== "library") { if (a.kind === "room") pts.push(W(a.i, -1.8, 0)); pts.push(libOut, libIn); }
   pts.push(to.clone());
   const out = []; let prev = me.pos;
   for (const q of pts) {
-    const w = space === "museum" ? steleCut(prev, q) : null; if (w) { out.push(w); prev = w; }
+    const w = steleCut(prev, q) || obsCut(prev, q); if (w) { out.push(w); prev = w; }
     const k = toWarp && q === pts.at(-1) ? null : warpCut(prev, q); if (k) out.push(k);
     out.push(q); prev = q;
   }
   return out.map(p => new THREE.Vector3(p.x, EYE, p.z));
+}
+function obsCut(a, b) {   // 円堂の置きもの（企画展の台）をよける
+  const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz; if (L2 < 1e-6) return null;
+  for (const o of OBST) {
+    const t = clamp(((o.x - a.x) * dx + (o.z - a.z) * dz) / L2, 0, 1), cx = a.x + dx * t, cz = a.z + dz * t, dd = Math.hypot(cx - o.x, cz - o.z);
+    if (dd >= o.r + .35 || t <= 0 || t >= 1) continue;
+    let nx = -dz, nz = dx; const nl = Math.hypot(nx, nz); nx /= nl; nz /= nl; const sg = (cx - o.x) * nx + (cz - o.z) * nz >= 0 ? 1 : -1;
+    return new THREE.Vector3(o.x + sg * nx * (o.r + .8), 0, o.z + sg * nz * (o.r + .8));
+  }
+  return null;
 }
 function steleCut(a, b) {
   const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz; if (L2 < 1e-6) return null;
@@ -898,7 +968,6 @@ function moveTick(dt) {
     if (ok(nx, nz) || (!cur && (walkable(nx, nz, .3) || f < 0))) { me.pos.x = nx; me.pos.z = nz; } else if (ok(nx, me.pos.z)) me.pos.x = nx; else if (ok(me.pos.x, nz)) me.pos.z = nz;
     else if (!me.bumpT || performance.now() - me.bumpT > 700) { me.bumpT = performance.now(); bump(); }
     walkable.warpOK = false;
-    if (Math.hypot(me.pos.x - WARP.x, me.pos.z - WARP.z) < WARP.r && !warping) doWarp();
   }
   const gy = EYE + groundY(me.pos.x, me.pos.z); me.pos.y += (gy - me.pos.y) * Math.min(1, dt * 10);
   if (Math.abs(gy - me.pos.y) > 3) me.pos.y = gy;
@@ -945,7 +1014,7 @@ function hover(e) {
   if (aoi?.visible && ray.intersectObject(aoi, true)[0]) { stage.style.cursor = "pointer"; return; }
   const h = ray.intersectObjects([...clickables, ...floors, ...blockers], false)[0];
   if (!h || h.distance > 40) { stage.style.cursor = ""; return; }
-  if (h.object.userData?.bay || h.object.userData?.book != null || h.object.userData?.warp || h.object.userData?.anim) { stage.style.cursor = "pointer"; return; }
+  if (h.object.userData?.bay || h.object.userData?.book != null || h.object.userData?.anim) { stage.style.cursor = "pointer"; return; }
   stage.style.cursor = "";
   if (floors.includes(h.object) && walkable(h.point.x, h.point.z)) { hoverRing.position.set(h.point.x, h.point.y + .012, h.point.z); hoverRing.visible = true; }
 }
@@ -991,39 +1060,34 @@ function walkTo(p, keepLook) { if (tour.on && !tour.susp) suspendTour(); intro.t
 // ---------------------------------------------------------------- ワープ（広間のまん中 ⇄ 図書館のまん中）
 const intro = { tok: 0 };
 let warping = false;
+// 書架の部屋へ（円堂の扉から歩いて入る）／書架の部屋から円堂へ
+const LIB_IN = () => libWorld(new THREE.Vector3(0, 0, LIB.Z - 2.2)), LIB_IN_LOOK = () => libWorld(new THREE.Vector3(0, 0, DISP_Z));
+const DISP_Z = -5.0;
 function goWarp() {
   if (tour.on && !tour.susp) suspendTour();
-  goTo(new THREE.Vector3(WARP.x, 0, WARP.z), null, () => { if (!warping) doWarp(); }, true);
+  if (region(me.pos.x, me.pos.z).kind === "library") { goTo(WF(LIB_FACE, -3.5, 0), new THREE.Vector3(0, 0, 0)); return; }
+  goTo(LIB_IN(), LIB_IN_LOOK());
 }
-const LIB_ARRIVE = new THREE.Vector3(0, 0, -1.3), HUB_ARRIVE = new THREE.Vector3(0, 0, -2.4);
-function doWarp(then) {
-  if (warping) return; warping = true; hush(); closeAll();
-  const toLib = space === "museum";
-  talk([toLib ? T.warp.to_lib : T.warp.to_mus], []);
-  const f = $("fade"); f.style.background = "radial-gradient(circle at 50% 60%, #fff3d0, #c9a45c 40%, #120d08 80%)"; f.classList.add("on");
-  setTimeout(() => {
-    space = toLib ? "library" : "museum";
-    const p = toLib ? LIB_ARRIVE : HUB_ARRIVE;
-    me.pos.set(p.x, EYE + groundY(p.x, p.z), p.z); me.yaw = 0; me.pitch = toLib ? -.05 : -.02; me.path = [];
-    A.goal = null; A.look = null; A.point = 0; aoiJump(); streamBays(); setZone(zoneOf());
-    document.body.classList.toggle("inlib", space === "library"); $("shelfBar").hidden = space !== "library"; spaceBtnUpd();
-    setTimeout(() => { f.classList.remove("on"); setTimeout(() => { f.style.background = ""; }, 400); warping = false;
-      if (then) then(); else if (space === "library") talk(T.library, libActs()); else freeTalk([T.lobby.at(-1)]); }, 450);
-  }, 650);
-}
-function libActs() { return [["本をえらぶ", () => { $("shelfBar").querySelector("button")?.focus(); toast("下の一覧か、棚の本を押してください"); }, true], [`${NAMES.museum}へもどる`, goWarp]]; }
-// 図書館：本を押すと、棚の前まで行って、本がひらく
+function doWarp(then) { then?.(); }
+function libActs() { return [["本をえらぶ", () => { $("shelfBar").querySelector("button")?.focus(); toast("上の一覧か、棚の本を押してください"); }, true], [`${NAMES.museum}へもどる`, goWarp]]; }
+// 図書館：本を押すと、読書の机へ行って、その場で本がひらく（2026-10-07 本人「書架から本を取って、その場で読む感じに（別の画面に飛ばない）」）
+//   ひらいている見開きを、碧が読む（左の絵の説明 → 右の見出しと文）。めくると、その見開きを読む
 function approachBook(i) {
-  if (space !== "library") return;
   const f = LIBW.featured[i]; hush();
-  goTo(f.stand.clone(), f.look.clone(), () => { reader.open(i); if (!seen.books.has(i)) { seen.books.add(i); readAloud(i); } });
+  const desk = LIBW.desk || null;
+  goTo(libWorld(f.stand), libWorld(f.look), () => {
+    const open = () => reader.open(i);
+    if (desk) goTo(libWorld(desk.stand), libWorld(desk.look), open); else open();
+  });
 }
-const reader = createReader({ rooms, T, NAMES, openZoom: w => openZoom(w), readAloud: i => readAloud(i), onClose: () => { document.body.classList.remove("reading-aloud"); hush(); } });
-function readAloud(i) {
+const reader = createReader({ rooms, T, NAMES, PAGES: M.pages || {}, openZoom: w => openZoom(w),
+  onSpread: lines => { if (!lines) { hush(); document.body.classList.remove("reading-aloud"); return; } readLines(lines); },
+  onClose: () => { document.body.classList.remove("reading-aloud"); hush(); } });
+function readLines(lines) {
   document.body.classList.add("reading-aloud"); $("guide").hidden = false;
-  const bk = bookList(rooms)[i], line = i < rooms.length ? T.books[i] : (T.books_x || {})[bk.id] || bk.desc;
-  talk([line], [["とめる", () => { hush(); document.body.classList.remove("reading-aloud"); }]]).then(ok => { if (ok) setTimeout(() => document.body.classList.remove("reading-aloud"), 1200); });
+  talk(lines, [["とめる", () => { hush(); document.body.classList.remove("reading-aloud"); }]]).then(ok => { if (ok) setTimeout(() => document.body.classList.remove("reading-aloud"), 1200); });
 }
+function readAloud(i) { reader.open(i); }
 function standFor(bay, sl) {
   const back = sl?.big ? 3.1 : 2.4, x = sl ? sl.x : 0;
   const v = new THREE.Vector3(x, 0, back).applyAxisAngle(new THREE.Vector3(0, 1, 0), bay.facing).add(bay.center);
@@ -1104,7 +1168,7 @@ function followSpot() {
   if (reg.kind === "room" && reg.u > FOY - .5) {
     const r = rooms[reg.i], fx0 = -Math.sin(me.yaw), fz0 = -Math.cos(me.yaw), lat = fx0 * r.p.x + fz0 * r.p.y;
     if (Math.abs(lat) > .62) {
-      const side = Math.sign(lat), row = clamp(Math.floor((reg.u - FOY) / BAY), 0, r.rows - 1), k = r.kei[row * 2 + (side > 0 ? 1 : 0)];
+      const side = Math.sign(lat), row = clamp(Math.floor((reg.u - FOY) / BAY), 0, r.rows - 1), k = r.keiAt(row, side > 0 ? 1 : -1);
       if (k) {
         const narrow = innerWidth / innerHeight < .8, inv = new THREE.Vector3(me.pos.x, 0, me.pos.z).sub(k.bay.center).applyAxisAngle(new THREE.Vector3(0, 1, 0), -k.bay.facing);
         const sx = narrow ? (inv.x < -1 ? .95 : -.95) : (inv.x < -.8 ? 2.95 : -2.95), sz = narrow ? 1.35 : 1.4;
@@ -1366,14 +1430,14 @@ function drawPlan(cv, big) {
   if (space === "library") {   // 図書館の平面（書架・百景の棚・机・光の輪）
     const s2 = S / 2 / (LIB.Z + 2), Q = (x, z) => [cx + x * s2, cy + z * s2];
     g.fillStyle = "#3a2a1a"; g.fillRect(...Q(-LIB.X, -LIB.Z), 2 * LIB.X * s2, 2 * LIB.Z * s2);
-    g.fillStyle = "#6b4c2a"; g.fillRect(...Q(-2.6, -5), 5.2 * s2, .9 * s2);
-    g.fillStyle = "#c9a45c"; g.beginPath(); g.arc(...Q(WARP.x, WARP.z), 1.3 * s2, 0, 7); g.fill();
-    const [mx, my] = Q(me.pos.x, me.pos.z); g.save(); g.translate(mx, my); g.rotate(-me.yaw); g.fillStyle = "#e74c3c"; g.beginPath(); const z = big ? 13 : 9; g.moveTo(0, -z); g.lineTo(z * .7, z * .7); g.lineTo(0, z * .35); g.lineTo(-z * .7, z * .7); g.closePath(); g.fill(); g.restore();
+    g.fillStyle = "#6b4c2a"; g.fillRect(...Q(-2.6, -5.35), 5.2 * s2, .7 * s2); g.fillRect(...Q(-4.2, -.4), 2 * s2, 3.6 * s2);
+    const ml = libLocal(me.pos.x, me.pos.z), [mx, my] = Q(ml.x, ml.z); g.save(); g.translate(mx, my); g.rotate(-(me.yaw - LIBO.th)); g.fillStyle = "#e74c3c"; g.beginPath(); const z = big ? 13 : 9; g.moveTo(0, -z); g.lineTo(z * .7, z * .7); g.lineTo(0, z * .35); g.lineTo(-z * .7, z * .7); g.closePath(); g.fill(); g.restore();
     return;
   }
   g.beginPath(); for (let k = 0; k < NF; k++) { const a = faceTh(k) + HA; const [x, y] = P(Math.sin(a) * RR, -Math.cos(a) * RR); k ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); g.fill();
   { const cs = [E(-.2, -DOOR - .4), E(PORT, -DOOR - .4), E(PORT, DOOR + .4), E(-.2, DOOR + .4)]; g.beginPath(); cs.forEach((p, k) => { const [x, y] = P(p.x, p.z); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); }
-  g.fillStyle = "#c9a45c"; g.beginPath(); g.arc(...P(WARP.x, WARP.z), Math.max(3, 1.3 * sc), 0, 7); g.fill(); g.fillStyle = "#6b5a44";
+  { const cs = [[-LIB.X, -LIB.Z], [LIB.X, -LIB.Z], [LIB.X, LIB.Z + .5], [-LIB.X, LIB.Z + .5]].map(([x, z]) => libWorld(new THREE.Vector3(x, 0, z))); g.beginPath(); cs.forEach((p, k) => { const [x, y] = P(p.x, p.z); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); }
+  g.fillStyle = "#6b5a44";
   const reg = region(me.pos.x, me.pos.z);
   for (const r of rooms) {
     const cs = [W(r.i, -.2, -HALF), W(r.i, r.L, -HALF), W(r.i, r.L, HALF), W(r.i, -.2, HALF)];
@@ -1431,11 +1495,12 @@ function credits() {
 $("credAll").innerHTML = credits();
 $("menuBtn").onclick = () => { closeAll(); $("menu").hidden = false; };
 $("optJoy").checked = store.get("smm-joy", false); $("optRM").checked = RM; $("optBig").checked = store.get("smm-big", false); $("optVoice").checked = store.get("smm-voice", true);
-const applyOpts = () => { $("joy").hidden = !$("optJoy").checked || mode !== "walk"; document.body.classList.toggle("big", $("optBig").checked); };
+const applyOpts = () => { $("joy").hidden = !$("optJoy").checked || mode !== "walk"; document.body.classList.toggle("big", $("optBig").checked); document.body.classList.toggle("hi", $("optHi").checked); };
 $("optJoy").onchange = () => { store.set("smm-joy", $("optJoy").checked); applyOpts(); };
 try { new ResizeObserver(() => { $("joy").style.bottom = ($("guide").getBoundingClientRect().height + 24 + 12) + "px"; }).observe($("guide")); } catch {}
 $("optRM").onchange = () => { RM = $("optRM").checked; store.set("smm-rm", RM); };
 $("optBig").onchange = () => { store.set("smm-big", $("optBig").checked); applyOpts(); };
+$("optHi").checked = store.get("smm-hi", false); $("optHi").onchange = () => { store.set("smm-hi", $("optHi").checked); applyOpts(); };
 $("optVoice").onchange = () => { store.set("smm-voice", $("optVoice").checked); if (!$("optVoice").checked) skipLine(); };
 $("muteBtn").onclick = () => { AUD.init(); AUD.setMute(!AUD.muted); if (AUD.muted && SP.playing) skipLine(); };
 AUD.setMute(AUD.muted);
@@ -1455,7 +1520,7 @@ function updWhere() {
   const reg = region(me.pos.x, me.pos.z); let a = NAMES.museum, b = NAMES.hub;
   if (reg.kind === "library") { a = NAMES.library; b = reader.isOpen ? "読んでいる本" : "書架から一冊をえらぶ"; }
   else if (reg.kind === "entrance") { b = reg.u > VEST ? "入口の前" : "玄関"; }
-  else if (reg.kind === "room") { const r = rooms[reg.i]; a = r.name; const j = clamp(Math.floor((reg.u - FOY) / BAY) * 2 + (reg.v > 0 ? 1 : 0), 0, r.kei.length - 1); b = reg.u < FOY ? r.desc : `${r.kei[j]?.no || ""}　${r.kei[j]?.name || ""}`; }
+  else if (reg.kind === "room") { const r = rooms[reg.i]; a = r.name; const kk = r.keiAt(clamp(Math.floor((reg.u - FOY) / BAY), 0, r.rows - 1), reg.v > 0 ? 1 : -1), j = kk ? kk.j : 0; const zn = kk && r.zones?.length > 1 ? r.zones[kk.genre]?.name + "　" : ""; b = reg.u < FOY ? r.desc : `${zn}${r.kei[j]?.no || ""}　${r.kei[j]?.name || ""}`; }
   const s = a + "|" + b; if (s !== lastWhere) { lastWhere = s; $("whereName").textContent = a; $("whereSub").textContent = b; }
 }
 
@@ -1476,17 +1541,19 @@ function showHint() {
   addEventListener("pointerdown", off2); setTimeout(off, 9000);
 }
 let woke = false;
+const OTO_EARLY = new URLSearchParams(location.search).get("mode") === "oto";
 function wake() {   // はじめて押したとき：音の仕組みを立て、碧がひとこと
   if (woke || mode !== "walk") return; woke = true;
   AUD.init(); AUD.zone(ambOf(zone.key)); $("guide").hidden = false; aoiJump();
+  if (OTO) { otoGo(0, true); return; }
   const acts = [["案内して", () => introWalk(), true], ["自分で歩く", () => { intro.tok++; freeTalk([T.idle.free]); }], ...(resumeAt && resumeOK ? [["続きから（" + rooms[region(resumeAt[0], resumeAt[1]).i].name + "）", resumeGo]] : [])];
   curActs = () => acts; talk(T.outside, acts);
 }
-addEventListener("pointerdown", () => wake(), { capture: true });
-addEventListener("keydown", e => { if (!e.target.closest?.("input,textarea,select")) wake(); }, { capture: true });
+addEventListener("pointerdown", e => { if (OTO_EARLY && e.target.closest?.("#otoBar,#otoRooms")) return; wake(); }, { capture: true });
+addEventListener("keydown", e => { if (OTO_EARLY) return; if (!e.target.closest?.("input,textarea,select")) wake(); }, { capture: true });
 async function introWalk(toLibrary) {
   const tk = ++intro.tok; if (!woke) wake();
-  await goP(new THREE.Vector3(0, 0, 14.2), new THREE.Vector3(STELE.x, 0, STELE.z)); if (tk !== intro.tok) return;
+  await goP(new THREE.Vector3(0, 0, R - 4.6), new THREE.Vector3(STELE.x, 0, STELE.z)); if (tk !== intro.tok) return;
   if (toLibrary) { goWarp(); return; }
   const acts = [["部屋をえらぶ", openMap, true], [FEAT.k.id === "kaeru" ? "蛙の壺を見る" : "正面の一枚を見る", () => approach(featBay, featBay.slots[0])], [`${NAMES.library}へ`, goWarp], ["順に案内して", () => runTour(0)]];
   curActs = () => acts; talk(T.lobby, acts);
@@ -1498,8 +1565,7 @@ function goHome() {   // 玄関へもどる
 }
 $("homeBtn").onclick = goHome;
 // 美術館 ⇄ 図書館を、どこからでも（光の輪までは歩かずに。光の輪はそのまま残す）
-function spaceBtnUpd() { const b = $("spaceBtn"); const lib_ = space === "library"; b.textContent = lib_ ? "🏛" : "📚"; b.setAttribute("aria-label", lib_ ? `${NAMES.museum}へ移る` : `${NAMES.library}へ移る`); b.title = b.getAttribute("aria-label"); }
-$("spaceBtn").onclick = () => { if (mode !== "walk" || warping) return; if (reader.isOpen) reader.close(); doWarp(); };
+// 美術館と図書館の行き来のボタンは 2026-10-07 にやめた（図書館は円堂の扉の奥の一室）
 const BOOKS_ALL = bookList(rooms);
 $("shelfBar").innerHTML = BOOKS_ALL.map((b, i) => `<button data-b="${i}" style="--c:${b.acc}">${esc(b.name)}</button>`).join("");
 $("shelfBar").querySelectorAll("button").forEach(b => b.onclick = () => approachBook(+b.dataset.b));
@@ -1515,15 +1581,19 @@ function tick() {
   aoiTick(dt); atmoTick(dt); partTick(dt, tt);
   const T_ = RM ? 0 : tt; for (const m of winMats) m.uniforms.uT.value = T_; warpMat.uniforms.uT.value = T_;
   for (const w of warps) w.ring.rotation.z = T_ * .3;
-  const dd = Math.hypot(me.pos.x - E(VEST).x, me.pos.z - E(VEST).z), open = space === "museum" && dd < 10;
+  const open = false;   // 玄関の扉は閉じたまま（外へは出ない）
   for (const d of ctxDoors) { const want = -ENT.th + (open ? d.sgn * 1.35 : 0); d.pivot.rotation.y += (want - d.pivot.rotation.y) * Math.min(1, dt * 2.2); }
   LIBW.tick(dt, tt, -1);
   if (marker.material.opacity > 0) marker.material.opacity = Math.max(0, marker.material.opacity - dt * .9);
-  exploreTick(dt);
+  exploreTick(dt); stepTick(dt);
   EX.tick(dt, tt, mode === "walk" && space === "museum");
-  acc += dt; if (acc > .3) { acc = 0; streamBays(); updWhere(); setZone(zoneOf()); if (mode === "walk" && !me.path.length && space === "museum" && region(me.pos.x, me.pos.z).kind === "room") store.set("smm-at", [+me.pos.x.toFixed(2), +me.pos.z.toFixed(2), +me.yaw.toFixed(3)]); }
+  acc += dt; if (acc > .3) { acc = 0;
+    const nsp = region(me.pos.x, me.pos.z).kind === "library" ? "library" : "museum";
+    if (nsp !== space) { space = nsp; document.body.classList.toggle("inlib", space === "library"); $("shelfBar").hidden = space !== "library";
+      if (space === "library" && mode === "walk" && woke && !reader.isOpen && !(tour.on && !tour.susp)) talk(T.library, libActs()); }
+    streamBays(); updWhere(); setZone(zoneOf()); if (mode === "walk" && !me.path.length && space === "museum" && region(me.pos.x, me.pos.z).kind === "room") store.set("smm-at", [+me.pos.x.toFixed(2), +me.pos.z.toFixed(2), +me.yaw.toFixed(3)]); }
   if (mode === "walk") { mapAcc += dt; if (mapAcc > .2) { mapAcc = 0; drawMini(); } }
-  if (!document.hidden && $("reader").hidden) { renderer.render(scene, camera); frames++; }
+  if (!document.hidden && ($("reader").hidden || (frames++ % 4 === 0))) { renderer.render(scene, camera); frames++; }   // 本をひらいているあいだも、うしろの部屋は描く（間引いて）
   requestAnimationFrame(tick);
 }
 function prog(p) { $("prog").querySelector("i").style.width = Math.round(p) + "%"; }
@@ -1539,7 +1609,101 @@ const resumeOK = !!resumeAt && (() => { space = "museum"; return walkable(resume
 function resumeGo() { intro.tok++; space = "museum"; teleport(new THREE.Vector3(resumeAt[0], 0, resumeAt[1]), null, () => { me.yaw = resumeAt[2]; freeTalk([T.idle.hello]); }); }
 warm.then(() => { prog(100); enterWalk(); showHint(); });
 
+// ---------------------------------------------------------------- 音で巡る館（?mode=oto）。2026-10-07 本人「目が見えない友人がいます。文字が見えにくいでなく、音で感じるという世界なので、
+//   url を切り替えて、目の見えにくい方向けのリンクを作れば初期設定から設定できる」。画面を見なくても完結する：碧の声が主・空間の音・大きなボタン四つとキーボード
+const OTO = new URLSearchParams(location.search).get("mode") === "oto";
+const otoStops = (() => {
+  const S = [{ t: "entry" }, { t: "lobby" }, { t: "exh0" }];
+  for (const it of EX.items) S.push({ t: "exh", it });
+  rooms.forEach((r, i) => { S.push({ t: "room", i }); r.kei.forEach((k, j) => S.push({ t: "kei", i, j })); });
+  S.push({ t: "lib" }); bookList(rooms).forEach((b, bi) => S.push({ t: "book", bi })); S.push({ t: "end" });
+  return S;
+})();
+const oto = { at: -1, tok: 0 };
+function otoPlace(st) {   // その場所の立ち位置と、見る向き
+  if (st.t === "entry") return [START, new THREE.Vector3(0, 0, 0)];
+  if (st.t === "lobby" || st.t === "exh0") return [new THREE.Vector3(0, 0, R - 4.6), new THREE.Vector3(0, 0, 0)];
+  if (st.t === "exh") { const n = new THREE.Vector3(0, 0, 1).applyQuaternion(st.it.g.quaternion), lk = st.it.g.position.clone().setY(0); return [lk.clone().addScaledVector(n, 2.9), lk]; }
+  if (st.t === "room") return [W(st.i, 1.6, 0), W(st.i, 12, 0)];
+  if (st.t === "kei") { const k = rooms[st.i].kei[st.j]; return [standFor(k.bay, k.bay.slots[0]).v, k.bay.center.clone()]; }
+  if (st.t === "lib" || st.t === "book") return [LIB_IN(), LIB_IN_LOOK()];
+  return [START, new THREE.Vector3(0, 0, 0)];
+}
+function otoLines(st) {
+  const O = T.oto || {};
+  if (st.t === "entry") return [O.hello, T.outside[0], O.keys];
+  if (st.t === "lobby") return T.lobby;
+  if (st.t === "exh0") return [O.exh];
+  if (st.t === "exh") { const L = (T.anim || {})[st.it.a.id] || {}; return [L.work, L.come]; }
+  if (st.t === "room") return T.rooms[st.i].intro;
+  if (st.t === "kei") { const K = T.rooms[st.i].kei[st.j]; return [...K.lines, K.side]; }
+  if (st.t === "lib") return [O.lib, ...T.library.slice(0, 1)];
+  if (st.t === "book") return [];
+  return [O.end];
+}
+function otoGo(n, quick) {
+  if (reader.isOpen && otoStops[oto.at]?.t !== "book") reader.close();
+  oto.at = (n + otoStops.length) % otoStops.length; const st = otoStops[oto.at], tk = ++oto.tok;
+  hush(); closeAll(); if (tour.on) stopTour(false);
+  const [p, look] = otoPlace(st);
+  const arrive = () => {
+    if (tk !== oto.tok) return;
+    if (st.t === "book") { if (reader.isOpen) reader.close(); reader.open(st.bi); return; }   // 本は、ひらくと碧が見開きを読む
+    if (st.t === "exh" && !RM) EX.start(st.it, "show");
+    talk(otoLines(st).filter(Boolean), otoActs()).then(ok => { if (ok && tk === oto.tok && st.t === "kei") otoKeiSound(st); });
+  };
+  const far = Math.hypot(p.x - me.pos.x, p.z - me.pos.z) > 12;
+  if (!quick && !far) talk([T.move[oto.at % T.move.length]], otoActs());   // 歩くあいだ（足音）は「こちらです」
+  if (quick || far) teleport(p, look, arrive); else goTo(p, look, arrive);
+}
+function otoKeiSound(st) {   // 景の音（借りた録音）を、その景の前で少しだけ（近づいた音として）
+  const k = rooms[st.i].kei[st.j]; if (!k.snd?.f || !AUD.ctx) return;
+  const a = new Audio(k.snd.f); a.volume = 0; a.play().catch(() => {}); let v = 0;
+  const up = setInterval(() => { v = Math.min(.6, v + .05); a.volume = v; }, 120);
+  setTimeout(() => { clearInterval(up); const dn = setInterval(() => { v = Math.max(0, v - .05); a.volume = v; if (v <= 0) { clearInterval(dn); a.pause(); } }, 120); }, 7000);
+}
+function otoMore() {   // くわしく：いまの所の、本の見開き（景のはなし・ほかの作品の解説）を読む
+  const st = otoStops[oto.at]; if (!st) return;
+  if (st.t === "kei") { const r = rooms[st.i], k = r.kei[st.j], sp = (M.pages[r.slug] || []).filter(x => x.R.k === k.id && x.R.t !== "kei"); talk(sp.flatMap(x => x.L.t === "type" ? x.say.slice(1) : x.say), otoActs()); return; }
+  if (st.t === "room") { talk([T.rooms[st.i].zones || T.rooms[st.i].intro[0]], otoActs()); return; }
+  if (st.t === "exh") { const { k, w } = animWork(st.it.a); if (w?.note) talk(SCsent(w.note), otoActs()); return; }
+  talk(otoLines(st).filter(Boolean), otoActs());
+}
+const SCsent = t => (t.match(/[^。！？]+[。！？]?/g) || []).map(x => x.trim()).filter(Boolean);
+function otoWhere() { const st = otoStops[oto.at]; if (!st) return; talk([otoLines(st).filter(Boolean)[0]], otoActs()); }
+function otoRooms() {
+  const el = $("otoRooms"); el.innerHTML = `<h2>部屋をえらぶ</h2>` + rooms.map((r, i) => `<button data-r="${i}">${i + 1}　${esc(r.name)}<small>${esc(r.desc)}</small></button>`).join("") + `<button data-r="lib">${esc(NAMES.library)}<small>本を見開きで読む</small></button><button data-r="x">閉じる</button>`;
+  el.hidden = false; el.querySelector("button").focus();
+  el.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { el.hidden = true; const v = b.dataset.r; if (v === "x") return; otoGo(otoStops.findIndex(s => v === "lib" ? s.t === "lib" : s.t === "room" && s.i === +v), true); });
+  talk([T.oto?.rooms].filter(Boolean), otoActs());
+}
+function otoActs() { return []; }
+function otoNext() { const st = otoStops[oto.at]; if (st?.t === "book" && reader.isOpen && reader.state.s < reader.state.sp.length - 1) { reader.turn(1); return; } otoGo(oto.at + 1); }
+function otoBack() { const st = otoStops[oto.at]; if (st?.t === "book" && reader.isOpen && reader.state.s > 0) { reader.turn(-1); return; } otoGo(oto.at - 1); }
+// 足音：歩いているあいだ、短い低い音（その場で作る）
+let stepT = 0;
+function stepTick(dt) {
+  if (!OTO || !AUD.ctx || AUD.muted || !me.path.length) { stepT = 0; return; }
+  stepT -= dt; if (stepT > 0) return; stepT = .52;
+  const c = AUD.ctx, n = c.createBufferSource(), b = c.createBuffer(1, c.sampleRate * .08, c.sampleRate), d = b.getChannelData(0);
+  for (let k = 0; k < d.length; k++) d[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / d.length, 3);
+  const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = space === "library" ? 500 : 900; const g = c.createGain(); g.gain.value = .25;
+  n.buffer = b; n.connect(f); f.connect(g); g.connect(AUD.master); n.start();
+}
+if (OTO) {
+  document.body.classList.add("oto"); document.title = `${NAMES.mode_oto || "音で巡る館"}　${NAMES.museum}`;
+  const bar = $("otoBar"); bar.hidden = false;
+  const first = () => { if (woke) return false; wake(); return true; };   // はじめの一押しは、入口の案内
+  $("otoNext").onclick = () => first() || otoNext(); $("otoBack").onclick = () => first() || otoBack();
+  $("otoRoomsBtn").onclick = () => first() || otoRooms(); $("otoMore").onclick = () => first() || otoMore(); $("otoWhereBtn").onclick = () => first() || otoWhere();
+  addEventListener("keydown", e => {
+    if (e.target.closest?.("input,textarea,select")) return;
+    const k = e.key.toLowerCase(), map = { arrowright: otoNext, arrowleft: otoBack, r: otoRooms, d: otoMore, w: otoWhere };
+    if (map[k]) { e.preventDefault(); e.stopImmediatePropagation(); if (!first()) map[k](); }
+  }, { capture: true });
+}
+
 // 確かめ用（Playwright）
 window.__mu = { featBay, rooms, bays, me, A, tour, SP, AUD, T, zone, NAMES, LIBW, reader, intro, get space() { return space; }, get vrm() { return vrm; }, get frames() { return frames; }, get mode() { return mode; }, renderer, camera, scene,
-  runTour, tourNextKei, enterRoom, openPanel, openMap, openList, approach, approachBook, region, walkable, pick, goTo, streamBays, goWarp, doWarp, goHome, introWalk, wake, E, VEST, get EX() { return EX; },
+  showZones, runTour, tourNextKei, enterRoom, openPanel, openMap, openList, approach, approachBook, region, walkable, pick, goTo, streamBays, goWarp, doWarp, goHome, introWalk, wake, E, VEST, get EX() { return EX; },
   info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, geo: renderer.info.memory.geometries }) };

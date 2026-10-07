@@ -141,12 +141,43 @@ summary{cursor:pointer;font-size:16px;min-height:44px;line-height:44px}
 @keyframes tapb{50%{transform:translateY(4px)}}
 body.big #panel,body.big #where{zoom:1.14}
 body.big #say{font-size:20px}
+body.hi #guide{background:#000!important;border-color:#fff!important}body.hi #say{color:#fff!important}body.hi .btn,body.hi .ico{background:#000!important;color:#fff!important;border:2px solid #fff!important}body.hi #where{background:#000;color:#fff}body.hi .pg{background:#fff!important;color:#000!important}body.hi .pin p{color:#000}
 body.big .sheet{font-size:112%}
 @media (min-width:821px){body.panel-open #guide{left:12px;transform:none;width:min(600px,calc(100vw - 456px))}}
 @media (max-width:440px){#hint{top:calc(max(10px,env(safe-area-inset-top)) + 178px)}#hint span{padding:8px 10px;font-size:15px}#mini{width:84px;height:84px}#listBtn{display:none}#where{position:fixed;left:12px;top:calc(max(10px,env(safe-area-inset-top)) + 100px);max-width:calc(100vw - 24px)}#where b{font-size:15px}#where small{font-size:14px}#tools{width:100%}#shelfBar{top:calc(max(10px,env(safe-area-inset-top)) + 162px)}}
 @media (max-width:560px){#acts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}#acts .btn{flex:none}#acts.wrap{flex-wrap:wrap;overflow:visible}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
+/* この部屋の一覧と地図：空中に浮かぶ札（2026-10-07） */
+#zones{position:fixed;left:50%;top:calc(max(10px,env(safe-area-inset-top)) + 120px);transform:translateX(-50%) perspective(900px) rotateX(10deg) translateY(-8px);opacity:0;transition:opacity .5s,transform .5s;z-index:6;width:min(520px,calc(100vw - 24px));
+  background:rgba(20,14,9,.62);border:1px solid rgba(231,207,147,.45);border-radius:16px;padding:10px 12px 12px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 18px 40px rgba(0,0,0,.45);color:#f3e7cf}
+#zones.on{opacity:1;transform:translateX(-50%) perspective(900px) rotateX(6deg)}
+#zones .zh{display:flex;align-items:baseline;gap:10px;padding-right:44px;position:relative}
+#zones .zh b{font-family:var(--mincho);font-size:19px;letter-spacing:.08em}#zones .zh small{font-size:14px;color:#d8c9a8}
+#zones .zh .x{position:absolute;right:-6px;top:-6px}
+#zones .zplan{display:flex;gap:3px;height:10px;margin:8px 0 10px;border-radius:5px;overflow:hidden}
+#zones .zl{display:flex;flex-wrap:wrap;gap:6px}
+#zones .zl button{min-height:48px;padding:4px 12px;border-radius:12px;border:1px solid rgba(255,240,210,.25);border-left:6px solid var(--c);background:rgba(255,248,232,.08);color:#f6efdf;text-align:left;display:flex;flex-direction:column;justify-content:center}
+#zones .zl b{font-size:16px;font-family:var(--mincho)}#zones .zl small{font-size:13.5px;color:#d8c9a8}
+@media (max-width:440px){#zones{top:calc(max(10px,env(safe-area-inset-top)) + 170px)}}
+/* 音で巡る館：大きく、くっきり */
+#otoBar{position:fixed;left:0;right:0;bottom:0;z-index:32;display:grid;grid-template-columns:1fr 1.4fr;gap:8px;padding:10px 10px max(10px,env(safe-area-inset-bottom));background:#0b0907;border-top:2px solid #e7cf93}
+#otoBar[hidden]{display:none}
+#otoBar .ob{min-height:64px;font-size:20px;font-weight:700;border-radius:14px;border:2px solid #f3e7cf;background:#1b140c;color:#fff}
+#otoBar .ob.pri{background:#f3e7cf;color:#0b0907;grid-row:span 2;font-size:26px}
+#otoBar .ob:focus-visible{outline:4px solid #ffd54a;outline-offset:2px}
+@media (min-width:760px){#otoBar{grid-template-columns:repeat(5,1fr)}#otoBar .ob.pri{grid-row:auto}}
+body.oto #guide{bottom:calc(230px + env(safe-area-inset-bottom));width:calc(100vw - 16px);background:rgba(0,0,0,.86);border-color:#e7cf93}
+body.oto #say{font-size:19px;color:#fff}
+@media (min-width:760px){body.oto #guide{bottom:110px}}
+body.oto #hint,body.oto #zones{display:none!important}
+#otoRooms{z-index:40;display:flex;flex-direction:column;gap:8px;padding:16px;background:#0b0907}
+#otoRooms[hidden]{display:none}
+#otoRooms h2{color:#fff;font-size:24px;margin:4px 0 8px}
+#otoRooms button{min-height:64px;font-size:20px;text-align:left;padding:8px 16px;border-radius:12px;border:2px solid #f3e7cf;background:#1b140c;color:#fff;display:flex;flex-direction:column}
+#otoRooms button small{font-size:15px;color:#e8dcc4}
+/* 読み込みの帯 */
+#prog{height:4px;background:#ffffff22;border-radius:2px;overflow:hidden;width:100%}
 #prog i{display:block;height:100%;width:0;background:var(--gold2);transition:width .3s}
 #boot{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 40%,#2a2016,#0d0a07 70%);transition:opacity .9s}
 #boot.gone{opacity:0;pointer-events:none}
@@ -158,11 +189,27 @@ body.big .sheet{font-size:112%}
 #shelfBar{position:fixed;left:0;right:0;top:calc(max(10px,env(safe-area-inset-top)) + 118px);z-index:6;display:flex;gap:8px;overflow-x:auto;padding:4px 12px;scrollbar-width:none;justify-content:safe center}
 #shelfBar button{flex:none;min-height:48px;padding:0 16px;border-radius:12px;border:1px solid #6b5332;background:color-mix(in srgb,#1b140c 88%,transparent);color:#f3e7cf;font-family:var(--mincho);font-size:16px;letter-spacing:.06em;border-left:6px solid var(--c);box-shadow:var(--shadow)}
 #libHint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(10px,env(safe-area-inset-bottom)) + 64px);z-index:6;background:color-mix(in srgb,#1b140c 85%,transparent);border:1px solid #6b5332;border-radius:999px;padding:8px 16px;font-size:16px;color:#f3e7cf;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-#reader{position:fixed;inset:0;z-index:30;background:radial-gradient(900px 500px at 50% 40%,#3a2a19,#120d08);display:flex;flex-direction:column;align-items:center;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
+/* 本は、館の中（読書の机の上）でひらく：うしろに部屋が見えたまま（2026-10-07 本人「その場で読む感じに」） */
+#reader{position:fixed;inset:0;z-index:30;background:radial-gradient(1100px 640px at 50% 55%,rgba(30,20,10,.35),rgba(10,7,4,.78));display:flex;flex-direction:column;align-items:center;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
 #reader .rh{width:min(1180px,100%);display:flex;align-items:center;gap:8px;padding:2px 2px 8px}
 #reader .rh b{flex:1;min-width:0;font-family:var(--mincho);font-size:19px;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #reader .rh .btn{min-height:44px;font-size:15px;padding:0 14px}
 #book{position:relative;flex:1;width:min(1180px,100%);display:flex;justify-content:center;align-items:stretch;perspective:2400px;min-height:0;touch-action:pan-y}
+@media (min-width:760px) and (prefers-reduced-motion:no-preference){#book .spread{transform:perspective(2200px) rotateX(7deg);transform-origin:50% 80%;box-shadow:0 30px 60px rgba(0,0,0,.55)}}
+/* 見開き：左＝絵・図、右＝見出しと文 */
+.pin.fig{display:flex;flex-direction:column;justify-content:center;align-items:center}
+.pin.fig figure img{max-height:62vh}
+.pin.typo{text-align:center}
+.pin .big{font-family:var(--mincho);font-weight:600;font-size:clamp(48px,9vw,110px);letter-spacing:.12em;color:#2b2116;line-height:1.2;border-bottom:3px solid var(--c,#9a7a3a);padding-bottom:.1em;margin-bottom:.3em}
+.pin .big.sm{font-size:clamp(26px,4vw,40px);letter-spacing:.06em;border:0}
+.pin .mk{font-size:72px;line-height:1}
+.pin .sub{font-size:15px;color:#6b5a3e;margin-top:0}
+.stack{position:absolute;inset:0 0 30px 0;overflow:auto;-webkit-overflow-scrolling:touch}
+.stack>.pin,.stack>.cover,.stack>.endp{position:relative;inset:auto;min-height:0}
+.stack>.cover{min-height:56vh}
+.stack>.pin.fig{padding-bottom:6px}
+.stack>.pin.fig figure img{max-height:44vh}
+.stack>.endp{display:none}
 .spread{position:relative;display:flex;height:100%;max-height:860px;width:100%;filter:drop-shadow(0 18px 30px rgba(0,0,0,.55))}
 .pg{position:relative;flex:1;min-width:0;background:linear-gradient(90deg,#efe5cf,#f8f1e1 12%,#f8f1e1 88%,#eadfc6);color:#2b2116;overflow:hidden}
 .pg.l{border-radius:10px 2px 2px 10px;background:linear-gradient(270deg,#e2d5b8 0,#f6eedc 7%,#f8f1e1 90%,#eee3cb)}
@@ -224,7 +271,6 @@ body.big .sheet{font-size:112%}
   <div id="where" aria-live="polite"><b id="whereName">森羅美術館</b><small id="whereSub">入口の広間</small></div>
   <div id="tools">
     <button class="ico" id="homeBtn" aria-label="玄関へもどる" title="玄関へもどる">⌂</button>
-    <button class="ico" id="spaceBtn" aria-label="図書館へ移る" title="図書館へ移る">📚</button>
     <button class="ico" id="muteBtn" aria-label="音を消す" aria-pressed="false" title="音">🔊</button>
     <button class="ico" id="listBtn" aria-label="一覧で見る（3D を使わずに）" title="一覧で見る">☰</button>
     <button class="ico" id="menuBtn" aria-label="設定と出典" title="設定と出典">⚙</button>
@@ -249,6 +295,16 @@ body.big .sheet{font-size:112%}
 <div id="hint" hidden aria-hidden="true"><span><b>👆</b>押して歩く</span><span><b>↔</b>なぞって見回す</span><span><b>🖼</b>絵の前で止まると、碧が話す</span></div>
 
 <nav id="shelfBar" hidden aria-label="書架の本"></nav>
+<section id="zones" hidden aria-label="この部屋の区画"></section>
+<!-- 音で巡る館（?mode=oto）：大きなボタン。画面を見なくても、スクリーンリーダーでもキーボードでも -->
+<nav id="otoBar" hidden aria-label="音で巡る館の操作">
+  <button id="otoBack" class="ob" aria-keyshortcuts="ArrowLeft">◀ 戻る</button>
+  <button id="otoNext" class="ob pri" aria-keyshortcuts="ArrowRight">次へ ▶</button>
+  <button id="otoRoomsBtn" class="ob" aria-keyshortcuts="R">部屋をえらぶ</button>
+  <button id="otoMore" class="ob" aria-keyshortcuts="D">くわしく</button>
+  <button id="otoWhereBtn" class="ob" aria-keyshortcuts="W">いまどこ</button>
+</nav>
+<div id="otoRooms" class="sheet" hidden role="dialog" aria-label="部屋をえらぶ"></div>
 <div id="reader" hidden role="dialog" aria-label="本を読む">
   <div class="rh">
     <button class="btn" id="rdClose" aria-label="本をとじて書架へもどる">✕ とじる</button>
@@ -281,6 +337,7 @@ body.big .sheet{font-size:112%}
   <label class="opt">移動のスティックを出す<input type="checkbox" id="optJoy"></label>
   <label class="opt">動きを減らす（歩かずに移る・碧の揺れや粒を止める）<input type="checkbox" id="optRM"></label>
   <label class="opt">文字を大きく<input type="checkbox" id="optBig"></label>
+  <label class="opt">くっきり（コントラストを上げる）<input type="checkbox" id="optHi"></label>
   <label class="opt">碧の声（切ると字幕だけ）<input type="checkbox" id="optVoice" checked></label>
   <h2 style="margin-top:18px">操作</h2>
   <p class="cred-all">床を押す＝そこへ歩く ／ 作品を押す＝前まで行って碧が話す（もう一度で札） ／ ドラッグ＝見回す ／ 地図＝部屋へ移る ／ キーボード＝W A S D・矢印で歩く、Q E で向きを変える、スペースで碧の話を止める・続ける、N で次へ、M で地図、Esc で閉じる。</p>
