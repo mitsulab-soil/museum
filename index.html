@@ -40,25 +40,42 @@ body.inlib #listBtn{display:none}
 #roomCard .k{font-size:14px;letter-spacing:.3em;color:var(--gold2)}
 #roomCard b{display:block;font-family:var(--mincho);font-size:clamp(30px,7vw,46px);font-weight:600;letter-spacing:.14em;margin:4px 0}
 #roomCard span{font-size:16px;color:#f3ead6}
-/* 碧の字幕（話したことば） */
-#guide{position:fixed;left:50%;transform:translateX(-50%);bottom:max(12px,env(safe-area-inset-bottom));width:min(680px,calc(100vw - 24px));z-index:6;
-  background:color-mix(in srgb,#120e09 90%,transparent);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:10px 12px;display:flex;gap:10px;align-items:flex-start;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-#guide .face{position:relative;flex:none;width:48px;height:48px}
-#guide img{width:48px;height:48px;border-radius:50%;object-fit:cover;background:var(--aoi2);display:block}
-#guide .face i{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:var(--aoi);border:2px solid #120e09;opacity:0;transition:opacity .2s}
+/* 碧の字幕（話したことば）── 2026-10-07 本人「もっとコンパクトに」：細く・低く・薄く。話し終わったら小さな印にたたむ */
+#guide{position:fixed;left:50%;transform:translateX(-50%);bottom:max(10px,env(safe-area-inset-bottom));width:min(600px,calc(100vw - 16px));z-index:6;
+  background:rgba(14,11,8,.4);border:1px solid rgba(255,240,210,.1);border-radius:14px;padding:6px 10px 6px 8px;display:flex;gap:8px;align-items:flex-start;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  transition:opacity .35s,width .3s;text-shadow:0 1px 3px rgba(0,0,0,.85)}
+#guide .face{position:relative;flex:none;width:30px;height:30px;margin-top:2px}
+#guide img{width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--aoi2);display:block}
+#guide .face i{position:absolute;right:-2px;bottom:-2px;width:11px;height:11px;border-radius:50%;background:var(--aoi);border:2px solid #120e09;opacity:0;transition:opacity .2s}
 #guide.talking .face i{opacity:1;animation:pulse 1s infinite}
 @keyframes pulse{50%{transform:scale(.7)}}
 #guide .txt{flex:1;min-width:0}
-#guide .who{font-size:14px;color:var(--aoi);letter-spacing:.1em;font-weight:600;display:flex;gap:8px;align-items:center}
-#guide .who small{color:var(--dim);font-weight:400;letter-spacing:0}
-#say{font-size:17px;line-height:1.75;margin:2px 0 8px;min-height:1.75em;color:#f6efdf}
-#acts{display:flex;flex-wrap:wrap;gap:6px}
-#acts .btn{min-height:44px;font-size:15px;padding:0 14px}
-#acts .ib{width:44px;padding:0;font-size:17px}
-#guideFold{position:absolute;right:2px;top:2px;width:44px;height:44px;border:0;background:none;color:var(--dim);font-size:18px}
-#guide.folded{width:auto;left:12px;transform:none;padding:6px 14px 6px 6px;align-items:center}
-#guide.folded .txt>*:not(.who){display:none}
-#guide.folded #guideFold{position:static}
+#guide .who{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+#guide .who small{color:var(--dim)}
+#sayState:not(:empty){position:static;display:inline}
+#say{font-size:16px;line-height:1.55;margin:1px 0 0;min-height:1.55em;color:#fbf5e8}
+#acts{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none;margin-top:4px;margin-right:34px}
+#acts::-webkit-scrollbar{display:none}
+#acts:empty{display:none}
+#acts .btn{min-height:36px;font-size:14px;padding:0 12px;flex:none;white-space:nowrap;background:rgba(255,248,232,.1);border-color:rgba(255,240,210,.22);color:#f6efdf}
+#acts .btn.pri{background:color-mix(in srgb,var(--gold) 70%,transparent);color:#1b140c;text-shadow:none}
+#acts .ib{width:40px;padding:0;font-size:16px}
+#guideFold{position:absolute;right:2px;bottom:2px;width:40px;height:40px;border:0;background:none;color:var(--dim);font-size:16px}
+/* たたんだ形：碧の顔だけの小さな印（押すとひらく） */
+#guide.folded{width:auto;left:10px;transform:none;padding:4px;border-radius:999px;align-items:center;gap:0;cursor:pointer;background:rgba(14,11,8,.45)}
+#guide.folded .txt,#guide.folded #guideFold{display:none}
+#guide.folded .face{margin:0;width:36px;height:36px}
+#guide.folded img{width:36px;height:36px}
+@media (max-width:760px){
+  #guide{width:calc(100vw - 12px);bottom:max(6px,env(safe-area-inset-bottom));padding:4px 6px 4px 5px;gap:5px;border-radius:12px}
+  #guide .face,#guide img{width:22px;height:22px}
+  #say{font-size:14.5px;line-height:1.45;letter-spacing:.01em}
+  #acts{margin-top:3px;gap:5px}
+  #acts .btn{min-height:30px;font-size:13px;padding:0 10px;border-radius:999px}
+  #acts .ib{width:34px}
+  #guideFold{width:32px;height:32px;font-size:14px;right:1px;bottom:3px}
+  #acts{margin-right:30px}
+}
 body.reading-aloud #guide{display:flex!important;z-index:31}
 @media (max-width:760px){body.reading-aloud #guide{top:calc(max(8px,env(safe-area-inset-top)) + 60px);bottom:auto}}
 /* 札（作品の説明） */
@@ -126,7 +143,7 @@ body.big #panel,body.big #where{zoom:1.14}
 body.big #say{font-size:20px}
 body.big .sheet{font-size:112%}
 @media (min-width:821px){body.panel-open #guide{left:12px;transform:none;width:min(600px,calc(100vw - 456px))}}
-@media (max-width:440px){#hint{top:calc(max(10px,env(safe-area-inset-top)) + 178px)}#hint span{padding:8px 10px;font-size:15px}#acts{gap:4px}#acts .btn{padding:0 12px}#mini{width:84px;height:84px}#listBtn{display:none}#where{position:fixed;left:12px;top:calc(max(10px,env(safe-area-inset-top)) + 100px);max-width:calc(100vw - 24px)}#where b{font-size:15px}#where small{font-size:14px}#tools{width:100%}#shelfBar{top:calc(max(10px,env(safe-area-inset-top)) + 162px)}#say{font-size:16.5px}}
+@media (max-width:440px){#hint{top:calc(max(10px,env(safe-area-inset-top)) + 178px)}#hint span{padding:8px 10px;font-size:15px}#mini{width:84px;height:84px}#listBtn{display:none}#where{position:fixed;left:12px;top:calc(max(10px,env(safe-area-inset-top)) + 100px);max-width:calc(100vw - 24px)}#where b{font-size:15px}#where small{font-size:14px}#tools{width:100%}#shelfBar{top:calc(max(10px,env(safe-area-inset-top)) + 162px)}}
 @media (max-width:560px){#acts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}#acts .btn{flex:none}#acts.wrap{flex-wrap:wrap;overflow:visible}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 

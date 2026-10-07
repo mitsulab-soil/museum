@@ -732,7 +732,16 @@ const AUD = {
 const SP = { tok: 0, playing: false, paused: false, cur: "", resolve: null, timer: null, t0: 0, rest: 0 };
 const voiceOn = () => AUD.ctx && !AUD.muted && $("optVoice").checked;
 const est = t => 900 + t.length * 135;
-function setTalking(on) { $("guide").classList.toggle("talking", on); }
+function setTalking(on) {
+  $("guide").classList.toggle("talking", on);
+  // 2026-10-07 本人「話し終わったら自動でたたむ（小さな印だけ残し、押すと開く）」。案内の途中（順に巡る）はたたまない
+  clearTimeout(SP.foldT);
+  if (on) { if (SP.autoFolded) { SP.autoFolded = false; fold(false); } }
+  else SP.foldT = setTimeout(() => {
+    if ($("guide").classList.contains("talking") || SP.paused || (tour.on && !tour.susp) || document.body.classList.contains("reading-aloud") || $("guide").classList.contains("folded")) return;
+    fold(true); SP.autoFolded = true;
+  }, 4200);
+}
 function speakLine(text) {
   return new Promise(res => {
     SP.cur = text; $("say").textContent = text; A.talkT = 0; setTalking(true); window.__said = (window.__said || []).concat([text]).slice(-30);
@@ -1381,8 +1390,10 @@ document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => { $(b.d
 document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e => { if (e.target === s) s.hidden = true; }));
 function anySheet() { return ["map", "list", "menu"].some(id => !$(id).hidden) || !$("zoom").hidden || !$("start").hidden; }
 function closeAll() { for (const id of ["map", "list", "menu"]) $(id).hidden = true; $("zoom").hidden = true; closePanel(); }
-function fold(on) { $("guide").classList.toggle("folded", on); $("guideFold").textContent = on ? "＋" : "－"; $("guideFold").setAttribute("aria-expanded", String(!on)); }
-$("guideFold").onclick = () => fold(!$("guide").classList.contains("folded"));
+function fold(on) { if (!on) SP.autoFolded = false; const g = $("guide"); g.classList.toggle("folded", on); on ? (g.setAttribute("role", "button"), g.setAttribute("tabindex", "0"), g.title = "碧のことばをひらく") : (g.removeAttribute("role"), g.removeAttribute("tabindex"), g.title = ""); $("guideFold").textContent = on ? "＋" : "－"; $("guideFold").setAttribute("aria-expanded", String(!on)); }
+$("guideFold").onclick = e => { e.stopPropagation(); fold(!$("guide").classList.contains("folded")); };
+$("guide").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && $("guide").classList.contains("folded")) { e.preventDefault(); e.stopPropagation(); fold(false); setActs(curActs()); } });
+$("guide").addEventListener("click", () => { if ($("guide").classList.contains("folded")) { fold(false); setActs(curActs()); } });
 let toastT = 0; function toast(s) { const t = $("toast"); t.textContent = s; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 1800); }
 let lastWhere = "";
 function updWhere() {
