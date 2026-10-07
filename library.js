@@ -5,7 +5,8 @@
 import { esc, credit } from "./common.js";
 
 // 2026-10-07 本人「図書館を別の場所として作らず、美術館の中に書架の部屋を一室設け」→ 円堂の玄関わきの扉から入る、地上の一室（座標はこの部屋の中のもの。+z が円堂の側＝入口）
-export const LIB = { Y: 0, X: 4.4, Z: 7.2, H: 6.2, DOOR: 1.5 };
+// 2026-10-08 本人「書架の間の入口だけ小さい」→ ほかの部屋の入口（半幅 2.5 m・アーチの頂 5.2 m）とそろえた
+export const LIB = { Y: 0, X: 4.4, Z: 7.2, H: 6.2, DOOR: 2.5, DOORH: 5.2 };
 const DISP = { z: -5.0, w: 2.4, d: .7 };                 // 奥の「百景の棚」（表紙を見せて並べる）
 const TABLES = [[-2.5, 1.4]];                            // 読書の机（一台）
 const DISP2 = { x: 3.2, z: 1.4, w: .7, d: .6 };          // 右の小さな台（百景のほかの本）。表紙を部屋のまん中（−x）へ
@@ -41,7 +42,7 @@ export function buildLibrary(ctx) {
     put("libwall", wallM, new THREE.BoxGeometry(LIB.X - LIB.DOOR, LIB.H, .3), V(s * (LIB.X + LIB.DOOR) / 2, LIB.H / 2, LIB.Z + .15));
   }
   put("libwall", wallM, new THREE.BoxGeometry(2 * LIB.X, LIB.H, .3), V(0, LIB.H / 2, -LIB.Z - .15));
-  put("libwall", wallM, new THREE.BoxGeometry(2 * LIB.DOOR, LIB.H - 3.4, .3), V(0, 3.4 + (LIB.H - 3.4) / 2, LIB.Z + .15));
+  put("libwall", wallM, new THREE.BoxGeometry(2 * LIB.DOOR, LIB.H - LIB.DOORH, .3), V(0, LIB.DOORH + (LIB.H - LIB.DOORH) / 2, LIB.Z + .15));
   put("libceil", new THREE.MeshStandardMaterial({ color: 0x24170e, roughness: .9 }), new THREE.PlaneGeometry(2 * LIB.X, 2 * LIB.Z), V(0, LIB.H, 0), 0, Math.PI / 2);
   for (let z = -LIB.Z + 1; z < LIB.Z; z += 2) put("libwood", mats.darkWood, new THREE.BoxGeometry(2 * LIB.X, .3, .24), V(0, LIB.H - .15, z));
   for (const x of [-LIB.X + 2.5, 0, LIB.X - 2.5]) put("libwood", mats.darkWood, new THREE.BoxGeometry(.24, .32, 2 * LIB.Z), V(x, LIB.H - .16, 0));
@@ -56,7 +57,7 @@ export function buildLibrary(ctx) {
     const door = nz < 0;   // +z の壁（入口）：入口の上だけに棚
     const isGap = t => door && Math.abs(x0 + ax * t) < LIB.DOOR + .1;
     for (let r = 0; r <= SH; r++) {
-      if (door) { for (const s of [-1, 1]) put("libwood", mats.darkWood, new THREE.BoxGeometry(LIB.X - LIB.DOOR, .05, CD), V(s * (LIB.X + LIB.DOOR) / 2, H0 + r * RW - .03, z0)); if (H0 + r * RW > 3.5) put("libwood", mats.darkWood, new THREE.BoxGeometry(2 * LIB.DOOR, .05, CD), V(0, H0 + r * RW - .03, z0)); }
+      if (door) { for (const s of [-1, 1]) put("libwood", mats.darkWood, new THREE.BoxGeometry(LIB.X - LIB.DOOR, .05, CD), V(s * (LIB.X + LIB.DOOR) / 2, H0 + r * RW - .03, z0)); if (H0 + r * RW > LIB.DOORH + .1) put("libwood", mats.darkWood, new THREE.BoxGeometry(2 * LIB.DOOR, .05, CD), V(0, H0 + r * RW - .03, z0)); }
       else put("libwood", mats.darkWood, new THREE.BoxGeometry(len, .05, CD), V((x0 + x1) / 2, H0 + r * RW - .03, (z0 + z1) / 2), Math.abs(nx) ? Math.PI / 2 : 0);
     }
     for (let t = 0; t <= len; t += 1.6) if (!isGap(t)) put("libwood", mats.woodMat, new THREE.BoxGeometry(.08, SH * RW + .3, CD + .04), V(x0 + ax * t, (SH * RW + .3) / 2 + .05, z0 + az * t), rotY);
@@ -64,7 +65,7 @@ export function buildLibrary(ctx) {
       let t = .1;
       while (t < len - .1) {
         const w = .035 + rnd() * .055, h = .2 + rnd() * .3 * (RW - .1) / .5 * .55, gap = rnd() < .04 ? .25 : .004;
-        if (rnd() < .025 || (isGap(t) && H0 + r * RW < 3.5)) { t += .3; continue; }
+        if (rnd() < .025 || (isGap(t) && H0 + r * RW < LIB.DOORH + .1)) { t += .3; continue; }
         books.push({ x: x0 + ax * (t + w / 2), z: z0 + az * (t + w / 2), y: H0 + r * RW + h / 2, w, h, d: .2 + rnd() * .12, rot: rotY, c: pal[Math.floor(rnd() * pal.length)], lean: rnd() < .03 ? (rnd() - .5) * .3 : 0, nx, nz });
         t += w + gap;
       }

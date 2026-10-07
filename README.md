@@ -6,7 +6,10 @@ mitsulab の連作《森羅百景》の作品を、3D の館で見る・読む�
 - **書架の間で読む**：円堂の玄関から入って左手の扉の奥の一室。書架の本を手にとると、読書の机で見開きの本になって読めます。
 - **音で巡る館**：<https://mitsulab-soil.github.io/museum/?mode=oto>（画面を見なくても、声と音とボタン五つで巡れます）。
 
-ページ：<https://mitsulab-soil.github.io/museum/>
+ページ：<https://mitsulab-soil.github.io/museum/>（音で巡る館＝<https://mitsulab-soil.github.io/museum/?mode=oto>）
+
+- めやす：広間だけなら 2 分、一部屋なら 10 分ほど。
+- 学校の授業で、教室の画面に映して使ってかまいません（作品の権利の表示は、作品の札のとおり）。
 
 ## 出典とライセンス
 

@@ -169,7 +169,8 @@ const giltMat = new THREE.MeshStandardMaterial({ color: 0xb08a3e, metalness: .85
 const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a1d12, roughness: .5, metalness: .1 });
 const sootMat = new THREE.MeshBasicMaterial({ map: T_SOOT, transparent: true, depthWrite: false });
 const glowMat = new THREE.MeshBasicMaterial({ color: 0xfff1c8, toneMapped: false });
-const domeMat = new THREE.MeshStandardMaterial({ map: TX.coffers(), side: THREE.BackSide, roughness: .9, envMapIntensity: .3 });
+// 2026-10-08 本人「広間の天井を 3D で」：格間は絵ではなく、丸天井から内へ出た枠（梁）で組む。丸天井そのものは格間の奥の色
+const domeMat = new THREE.MeshStandardMaterial({ color: 0x86714f, side: THREE.BackSide, roughness: .9, envMapIntensity: .3 });
 const oculusMat = new THREE.MeshBasicMaterial({ color: 0xfff6e2, toneMapped: false });
 // 絨毯の毛足（Poly Haven「Dirty Carpet」の法線だけ・CC0。2026-10-08）。部屋の通路の UV は 2.4 m で一巡 → 毛足は 0.6 m ごと
 const C_NOR = tex("tex/c_nor.webp", false); C_NOR.repeat.set(4, 4);
@@ -273,7 +274,7 @@ const putF = (tag, mat, geo, f, u, v, y, rotY) => { const p = WF(f, u, v); p.y =
   const face = 2 * R * Math.tan(HA);
   FACES.forEach((F, k) => {
     const room = rooms.includes(F) ? F : null, isLib = F === LIB_FACE, open = room || F === ENT || isLib;
-    const DW = isLib ? LIB.DOOR : DOOR, SP = isLib ? 3.4 - LIB.DOOR : SPRING;
+    const DW = DOOR, SP = SPRING;   // 書架の間の入口も、ほかの部屋と同じ大きさ（2026-10-08 本人）
     const s = new THREE.Shape(); s.moveTo(-face / 2 - .3, 0); s.lineTo(face / 2 + .3, 0); s.lineTo(face / 2 + .3, LOBBY_H); s.lineTo(-face / 2 - .3, LOBBY_H); s.closePath();
     if (open) { const hole = new THREE.Path(); hole.moveTo(-DW, 0); hole.lineTo(DW, 0); hole.lineTo(DW, SP); hole.absarc(0, SP, DW, 0, Math.PI, false); hole.lineTo(-DW, 0); s.holes.push(hole); }
     const eg = new THREE.ExtrudeGeometry(s, { depth: .5, bevelEnabled: false, curveSegments: 20 });
@@ -294,7 +295,7 @@ const putF = (tag, mat, geo, f, u, v, y, rotY) => { const p = WF(f, u, v); p.y =
       c.fillStyle = "#6b5332"; fit(c, sub, w * .86, `%px ${GOTH}`, 32); c.fillText(sub, w / 2, h * .82);
       if (room) { c.fillStyle = room.acc; c.fillRect(w / 2 - 60, h - 20, 120, 6); }
     }, 1024);
-    const ty = isLib ? 4.6 : open ? 6.4 : 4.2;
+    const ty = open ? 6.4 : 4.2;
     const p = WF(F, -.53, 0); t.position.set(p.x, ty, p.z); t.rotation.y = -F.th; world.add(t);
     putF("brass", brassMat, new THREE.BoxGeometry(2.2, .06, .05), F, -.54, 0, ty + .55, -F.th);
     putF("wood", darkWood, new THREE.BoxGeometry(face + .8, .5, .7), F, -.7, 0, LOBBY_H - .25, -F.th);
@@ -312,10 +313,37 @@ const putF = (tag, mat, geo, f, u, v, y, rotY) => { const p = WF(f, u, v); p.y =
     const cove = new THREE.Mesh(new THREE.CylinderGeometry(RR - .7, RR - .7, .22, 88, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe2b0, transparent: true, opacity: .55, side: THREE.BackSide, toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false }));
     cove.position.y = LOBBY_H + .5; world.add(cove);
     const ribM = new THREE.MeshStandardMaterial({ map: T_MARBLE, color: 0xe8dcc4, roughness: .35, envMapIntensity: .8 });
+    // 3D の格天井（2026-10-08）：丸天井の面に沿って、横の輪（6 本）と縦の枠（一面に 2 本×11）を内へ 0.3 m 出し、その奥に格間。格間ごとに金の花（一つの InstancedMesh）
+    { const frameM = new THREE.MeshStandardMaterial({ color: 0xd9ccb0, roughness: .6, envMapIntensity: .6, side: THREE.DoubleSide });
+      const PH = [.06, .3, .52, .74, .95, 1.16, 1.36].map(x => Math.min(x, Math.PI / 2 * .94 - .04));
+      const at = (a, ph, k = .992) => { const rr = RR * Math.cos(ph) * k; return new THREE.Vector3(Math.sin(a) * rr, LOBBY_H + RR * .42 * Math.sin(ph) * k - .02, -Math.cos(a) * rr); };
+      const geos = [];
+      for (const ph of PH.slice(1)) {   // 横の輪：四角い断面の輪（下向きに厚み）
+        const rr = RR * Math.cos(ph) * .985, y = LOBBY_H + RR * .42 * Math.sin(ph) * .985 - .02;
+        const lat = new THREE.LatheGeometry([new THREE.Vector2(rr + .05, y + .12), new THREE.Vector2(rr - .28, y + .1), new THREE.Vector2(rr - .3, y - .12), new THREE.Vector2(rr + .05, y - .14)], 88);
+        geos.push(lat);
+      }
+      for (let k = 0; k < NF; k++) for (const m of [1, 2]) {   // 縦の枠（主な肋のあいだに二本ずつ）
+        const a = faceTh(k) + HA + m * 2 * HA / 3, pts = []; for (let j = 0; j <= 12; j++) pts.push(at(a, PH[0] + (PH.at(-1) - PH[0]) * j / 12, .975));
+        geos.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 14, .13, 4, false));
+      }
+      for (const gg of geos) { const ms = new THREE.Mesh(gg, frameM); world.add(ms); }
+      const rosG = new THREE.SphereGeometry(.16, 10, 6); rosG.scale(1, 1, .45);
+      const n = NF * 3 * (PH.length - 1), ros = new THREE.InstancedMesh(rosG, ringM, n), mm = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1); let c = 0;
+      for (let k = 0; k < NF; k++) for (let m = 0; m < 3; m++) for (let j = 0; j < PH.length - 1; j++) {
+        const a = faceTh(k) + HA + (m + .5) * 2 * HA / 3, ph = (PH[j] + PH[j + 1]) / 2, p = at(a, ph, .995);
+        const nrm = new THREE.Vector3(p.x, (p.y - LOBBY_H) / (.42 * .42), p.z).normalize().negate();   // 丸天井の内向きの法線
+        q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nrm); mm.compose(p, q, one); ros.setMatrixAt(c++, mm);
+      }
+      ros.count = c; world.add(ros);
+      // 付け根の蛇腹（段のついた張り出し）。間接光の帯はこの段の上に隠れる
+      const cor = new THREE.LatheGeometry([[RR - .02, LOBBY_H - .35], [RR - .55, LOBBY_H - .35], [RR - .55, LOBBY_H - .2], [RR - .8, LOBBY_H - .1], [RR - .8, LOBBY_H + .02], [RR - 1.0, LOBBY_H + .1], [RR - 1.0, LOBBY_H + .3], [RR - .7, LOBBY_H + .34]].map(([x, y]) => new THREE.Vector2(x, y)), 88);
+      world.add(new THREE.Mesh(cor, new THREE.MeshStandardMaterial({ color: 0xe6dcc6, roughness: .5, envMapIntensity: .7, side: THREE.DoubleSide })));
+    }
     for (let k = 0; k < NF; k++) {
       const a = faceTh(k) + HA, pts = [];
       for (let j = 0; j <= 16; j++) { const ph = (j / 16) * Math.PI / 2 * .94, rr = (RR - .15) * Math.sin(Math.PI / 2 - ph) * .995; pts.push(new THREE.Vector3(Math.sin(a) * rr, LOBBY_H + (RR - .15) * .42 * Math.sin(ph) - .05, -Math.cos(a) * rr)); }
-      const rib = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, .14, 6, false), ribM); world.add(rib);
+      const rib = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, .22, 4, false), ribM); world.add(rib);
       const mid = Math.PI / 2 * .5, ra = faceTh(k), rr2 = (RR - .3) * Math.sin(Math.PI / 2 - mid) * .98;
       const ros = new THREE.Mesh(new THREE.CircleGeometry(.32, 12), ringM); ros.position.set(Math.sin(ra) * rr2, LOBBY_H + (RR - .3) * .42 * Math.sin(mid) - .12, -Math.cos(ra) * rr2); ros.lookAt(0, LOBBY_H - 4, 0); world.add(ros);
     } }
@@ -1446,33 +1474,64 @@ function toggleSound(s, b) {
 function stopSound() { if (!AU.paused) AU.pause(); if (auBtn) auBtn.textContent = auBtn.dataset.label || auBtn.textContent; auSrc = null; auBtn = null; if (!SP.playing) AUD.setDuck(1); }
 
 // ---------------------------------------------------------------- 地図
-const MAPR = (() => { let m = R + STEPS; for (const r of rooms) m = Math.max(m, R + r.L); return m + 2; })();
+// 2026-10-08 本人「館内の地図をもっと分かりやすく（字の大きさ・太さ・背景との差・重なり）。部屋の形・いまいる場所・向き・入口が一目で」
+//   部屋はどれも同じ長さ（LM m）の帯に描く（略図）＝広間と入口が大きく、部屋の名が帯の中に収まる。部屋の名は帯に沿って、濃い札に白い太字。
+const LM = 21, KUf = r => LM / r.L;
+const MAPR = R + LM + 1.5;
+const mapPt = (x, z) => { if (region(x, z).kind === "room") { const l = local(x, z); return WF(rooms[l.i], l.u * KUf(rooms[l.i]), l.v); } return new THREE.Vector3(x, 0, z); };
 function drawPlan(cv, big) {
   const g = cv.getContext("2d"), S = cv.width, sc = S / 2 / MAPR, cx = S / 2, cy = S / 2;
   g.clearRect(0, 0, S, S);
   const P = (x, z) => [cx + x * sc, cy + z * sc];
-  g.fillStyle = "#6b5a44";
-  if (space === "library") {   // 図書館の平面（書架・百景の棚・机・光の輪）
+  const arrow = (mx, my, rot, z) => {
+    g.save(); g.translate(mx, my); g.rotate(rot);
+    if (big) { g.fillStyle = "rgba(255,90,70,.22)"; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, z * 3.2, -Math.PI / 2 - .55, -Math.PI / 2 + .55); g.closePath(); g.fill(); }   // 見ている向き
+    g.fillStyle = "#ff4d3a"; g.strokeStyle = "#fff"; g.lineWidth = big ? 4 : 2.5; g.beginPath(); g.moveTo(0, -z); g.lineTo(z * .75, z * .75); g.lineTo(0, z * .35); g.lineTo(-z * .75, z * .75); g.closePath(); g.stroke(); g.fill(); g.restore();
+  };
+  const pill = (txt, x, y, ang, px, bg, fg, bd, maxW) => {   // 帯に沿った札（逆さにならない向き）。maxW を越える長さなら字を小さく
+    let a = ang; if (Math.cos(a) < 0) a += Math.PI;
+    if (maxW) { g.font = `700 ${px}px ${GOTH}`; const need = g.measureText(txt).width + px * .9; if (need > maxW) px = Math.floor(px * maxW / need); }
+    g.save(); g.translate(x, y); g.rotate(a); g.font = `700 ${px}px ${GOTH}`; g.textAlign = "center"; g.textBaseline = "middle";
+    const w = g.measureText(txt).width + px * .9, h = px * 1.45;
+    g.fillStyle = bg; g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, h / 2); g.fill(); if (bd) { g.strokeStyle = bd; g.lineWidth = Math.max(2, px * .12); g.stroke(); }
+    g.fillStyle = fg; g.fillText(txt, 0, px * .04); g.restore();
+  };
+  const poly = (cs, fill, stroke) => { g.beginPath(); cs.forEach((p, k) => { const [x, y] = P(p.x, p.z); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fillStyle = fill; g.fill(); if (stroke) { g.strokeStyle = stroke; g.lineWidth = big ? 3 : 1.5; g.stroke(); } };
+  if (space === "library") {   // 書架の間の平面（書架・百景の棚・机）
     const s2 = S / 2 / (LIB.Z + 2), Q = (x, z) => [cx + x * s2, cy + z * s2];
-    g.fillStyle = "#3a2a1a"; g.fillRect(...Q(-LIB.X, -LIB.Z), 2 * LIB.X * s2, 2 * LIB.Z * s2);
-    g.fillStyle = "#6b4c2a"; g.fillRect(...Q(-2.6, -5.35), 5.2 * s2, .7 * s2); g.fillRect(...Q(-4.2, -.4), 2 * s2, 3.6 * s2);
-    const ml = libLocal(me.pos.x, me.pos.z), [mx, my] = Q(ml.x, ml.z); g.save(); g.translate(mx, my); g.rotate(-(me.yaw - LIBO.th)); g.fillStyle = "#e74c3c"; g.beginPath(); const z = big ? 13 : 9; g.moveTo(0, -z); g.lineTo(z * .7, z * .7); g.lineTo(0, z * .35); g.lineTo(-z * .7, z * .7); g.closePath(); g.fill(); g.restore();
+    g.fillStyle = "#4a3622"; g.fillRect(...Q(-LIB.X, -LIB.Z), 2 * LIB.X * s2, 2 * LIB.Z * s2);
+    g.strokeStyle = "#e8d3a8"; g.lineWidth = big ? 4 : 2; g.strokeRect(...Q(-LIB.X, -LIB.Z), 2 * LIB.X * s2, 2 * LIB.Z * s2);
+    g.fillStyle = "#8a6638"; g.fillRect(...Q(-2.6, -5.35), 5.2 * s2, .7 * s2); g.fillRect(...Q(-4.2, -.4), 2 * s2, 3.6 * s2);
+    g.fillStyle = "#f3c969"; g.fillRect(...Q(-LIB.DOOR, LIB.Z - .1), 2 * LIB.DOOR * s2, .5 * s2);   // 入口
+    if (big) { const px = Math.round(S * .045); pill("百景の棚", ...Q(0, -4.1), 0, px * .8, "rgba(20,14,8,.85)", "#fff"); pill("読書の机", ...Q(-3.2, 3.9), 0, px * .8, "rgba(20,14,8,.85)", "#fff"); pill("入口（広間へ）", ...Q(0, LIB.Z - 1.3), 0, px * .8, "#f3c969", "#1b140c"); }
+    const ml = libLocal(me.pos.x, me.pos.z), [mx, my] = Q(ml.x, ml.z); arrow(mx, my, -(me.yaw - LIBO.th), big ? 16 : 9);
+    if (big) pill("いまここ", mx, my - S * .06, 0, Math.round(S * .036), "#ff4d3a", "#fff");
     return;
   }
-  g.beginPath(); for (let k = 0; k < NF; k++) { const a = faceTh(k) + HA; const [x, y] = P(Math.sin(a) * RR, -Math.cos(a) * RR); k ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); g.fill();
-  { const cs = [E(-.2, -DOOR - .4), E(PORT, -DOOR - .4), E(PORT, DOOR + .4), E(-.2, DOOR + .4)]; g.beginPath(); cs.forEach((p, k) => { const [x, y] = P(p.x, p.z); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); }
-  { const cs = [[-LIB.X, -LIB.Z], [LIB.X, -LIB.Z], [LIB.X, LIB.Z + .5], [-LIB.X, LIB.Z + .5]].map(([x, z]) => libWorld(new THREE.Vector3(x, 0, z))); g.beginPath(); cs.forEach((p, k) => { const [x, y] = P(p.x, p.z); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); }
-  g.fillStyle = "#6b5a44";
   const reg = region(me.pos.x, me.pos.z);
+  // 広間（十一角）・玄関・書架の間
+  const lob = []; for (let k = 0; k < NF; k++) { const a = faceTh(k) + HA; lob.push(new THREE.Vector3(Math.sin(a) * RR, 0, -Math.cos(a) * RR)); }
+  poly(lob, reg.kind === "lobby" ? "#9c8462" : "#7a684e", "#e8d3a8");
+  poly([E(-.2, -DOOR - .4), E(VEST, -DOOR - .4), E(VEST, DOOR + .4), E(-.2, DOOR + .4)], "#7a684e", "#e8d3a8");
+  poly([[-LIB.X, -LIB.Z], [LIB.X, -LIB.Z], [LIB.X, LIB.Z + .5], [-LIB.X, LIB.Z + .5]].map(([x, z]) => libWorld(new THREE.Vector3(x, 0, z))), "#5a4430", "#e8d3a8");
   for (const r of rooms) {
-    const cs = [W(r.i, -.2, -HALF), W(r.i, r.L, -HALF), W(r.i, r.L, HALF), W(r.i, -.2, HALF)];
-    g.beginPath(); cs.forEach((p, k) => { const [x, y] = P(p.x, p.z); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
-    g.fillStyle = r.acc; g.globalAlpha = reg.kind === "room" && reg.i === r.i ? 1 : .6; g.fill(); g.globalAlpha = 1;
-    if (big) { const c = W(r.i, r.L * .55, 0), [x, y] = P(c.x, c.z); g.fillStyle = "#1b140c"; g.font = `600 ${Math.round(S * .03)}px ${GOTH}`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(r.name, x, y); }
+    const L = LM;
+    poly([WF(r, -.2, -HALF), WF(r, L, -HALF), WF(r, L, HALF), WF(r, -.2, HALF)], r.acc, reg.kind === "room" && reg.i === r.i ? "#fff" : "rgba(0,0,0,.55)");
   }
-  const [mx, my] = P(me.pos.x, me.pos.z);
-  g.save(); g.translate(mx, my); g.rotate(-me.yaw); g.fillStyle = "#e74c3c"; g.beginPath(); const z = big ? 13 : 9; g.moveTo(0, -z); g.lineTo(z * .7, z * .7); g.lineTo(0, z * .35); g.lineTo(-z * .7, z * .7); g.closePath(); g.fill(); g.restore();
-  if (aoi && A.pos) { const [ax, ay] = P(A.pos.x, A.pos.z); g.fillStyle = "#4fb3a8"; g.beginPath(); g.arc(ax, ay, big ? 7 : 5, 0, 7); g.fill(); }
+  // 入口（扉）＝金の線
+  g.strokeStyle = "#f3c969"; g.lineWidth = big ? 6 : 3; g.lineCap = "round";
+  for (const F of [ENT, LIB_FACE, ...rooms]) { const a = WF(F, 0, -DOOR), b = WF(F, 0, DOOR), [x1, y1] = P(a.x, a.z), [x2, y2] = P(b.x, b.z); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
+  if (big) {
+    const px = Math.round(S * .04);
+    for (const r of rooms) { const c = WF(r, LM * .55, 0), [x, y] = P(c.x, c.z); pill(r.name, x, y, Math.atan2(r.d.y, r.d.x), px, "rgba(20,14,8,.88)", "#fff", r.acc, LM * sc * .92); }
+    pill("広間", ...P(0, -7), 0, px, "rgba(20,14,8,.88)", "#fff");
+    { const c = E(VEST * .5), [x, y] = P(c.x, c.z); pill("玄関", x, y, 0, px * .85, "rgba(20,14,8,.88)", "#fff"); }
+    { const c = libWorld(new THREE.Vector3(0, 0, 0)), [x, y] = P(c.x, c.z); pill(NAMES.library, x, y, Math.atan2(LIB_FACE.d.y, LIB_FACE.d.x), px * .85, "rgba(20,14,8,.88)", "#fff", "#c9a45c", 2 * LIB.Z * sc * .9); }
+  }
+  if (aoi && A.pos) { const q = mapPt(A.pos.x, A.pos.z), [ax, ay] = P(q.x, q.z); g.fillStyle = "#4fd1c1"; g.strokeStyle = "#fff"; g.lineWidth = big ? 3 : 1.5; g.beginPath(); g.arc(ax, ay, big ? 9 : 5, 0, 7); g.fill(); g.stroke(); if (big) pill(NAMES.guide, ax + S * .045, ay, 0, Math.round(S * .03), "#4fd1c1", "#0d2a26"); }
+  const q = mapPt(me.pos.x, me.pos.z), [mx, my] = P(q.x, q.z);
+  arrow(mx, my, -me.yaw, big ? 16 : 9);   // 部屋は長さを縮めただけなので、向きはそのまま
+  if (big) pill("いまここ", mx, my + S * .05, 0, Math.round(S * .034), "#ff4d3a", "#fff");
 }
 function drawMini() { drawPlan($("mini").querySelector("canvas"), false); }
 function openMap() {
@@ -1484,10 +1543,10 @@ function openMap() {
 $("bigmap").addEventListener("click", e => {
   const cv = $("bigmap"), rc = cv.getBoundingClientRect(), S = cv.width, sc = S / 2 / MAPR;
   const x = ((e.clientX - rc.left) / rc.width * S - S / 2) / sc, z = ((e.clientY - rc.top) / rc.height * S - S / 2) / sc;
-  const l = local(x, z);
+  const l0 = local(x, z), l = l0 && { ...l0, u: l0.u / KUf(rooms[l0.i]) };   // 部屋は長さを縮めて描いている
   if (space === "library") { $("map").hidden = true; return; }
   if (l && l.u > -.3 && l.u < rooms[l.i].L) { $("map").hidden = true; enterRoom(l.i, () => freeTalk([T.rooms[l.i].intro[0]])); }
-  else if (!l || l.u <= -.3) { $("map").hidden = true; stopTour(false); teleport(new THREE.Vector3(0, 0, 13), new THREE.Vector3(0, 0, -10), () => freeTalk([T.lobby.at(-1)])); }
+  else if (!l || l.u <= -.3) { $("map").hidden = true; stopTour(false); teleport(START, new THREE.Vector3(0, 0, -10), () => freeTalk([T.lobby.at(-1)])); }
 });
 $("mini").onclick = openMap;
 
@@ -1508,7 +1567,7 @@ function credits() {
   const ambHTML = amb.map(([where, a]) => a.kind === "bgm"
     ? `<li>${esc(where)}：音楽「${esc(a.title)}」${esc(a.who)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝モノラル化・音量・ループ）</li>`
     : `<li>${esc(where)}：録音「${esc(a.label)}」${esc(a.who)}・${esc(a.where)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a></li>`).join("");
-  return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
+  return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>学校の授業で、教室の画面に映して使ってかまいません（作品の権利の表示は、作品の札のとおり）。めやすは、広間だけなら 2 分、一部屋なら 10 分ほど。</p><p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
   図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。
   一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。<b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></p>
   <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
@@ -1552,7 +1611,8 @@ function updWhere() {
 
 // ---------------------------------------------------------------- はじめ：玄関の中に立っている（2026-10-07 本人「TOP の選択のページをやめる：開いたらはじめから博物館の中にいる（入口に立っている）形に」）
 //   音は、はじめて押した（キーを押した）ときから。押すまで碧は話さない。説明は碧のひとことと、小さな手の絵だけ
-const START = E(VEST - 1.6);
+// 2026-10-08 本人「始まりの視点も広間の中央に」「ホームボタンを押したら広間の中央に」：円堂のまん中（碧の 2.4 m 手前）に、奥の部屋のほうを向いて立つ
+const START = new THREE.Vector3(0, 0, 3.6);
 function placeStart() { space = "museum"; me.pos.set(START.x, EYE, START.z); me.yaw = 0; me.pitch = -.03; me.path = []; document.body.classList.remove("inlib"); }
 function enterWalk() {
   mode = "walk"; $("boot").classList.add("gone"); setTimeout(() => { $("boot").hidden = true; }, 1000);
@@ -1581,15 +1641,15 @@ addEventListener("pointerdown", e => { if (OTO_EARLY && e.target.closest?.("#oto
 addEventListener("keydown", e => { if (OTO_EARLY) return; if (!e.target.closest?.("input,textarea,select")) wake(); }, { capture: true });
 async function introWalk(toLibrary) {
   const tk = ++intro.tok; if (!woke) wake();
-  await goP(new THREE.Vector3(0, 0, R - 4.6), new THREE.Vector3(0, 0, 0)); if (tk !== intro.tok) return;
+  if (Math.hypot(me.pos.x - START.x, me.pos.z - START.z) > 1) { await goP(START.clone(), new THREE.Vector3(0, 0, -10)); if (tk !== intro.tok) return; }   // はじめから広間のまん中にいる（2026-10-08）
   if (toLibrary) { goWarp(); return; }
   const acts = [["部屋をえらぶ", openMap, true], [`${NAMES.library}へ`, goWarp], ["順に案内して", () => runTour(0)]];
   curActs = () => acts; talk(T.lobby, acts);
 }
-function goHome() {   // 玄関へもどる
+function goHome() {   // 広間のまん中へもどる（2026-10-08 本人）
   intro.tok++; hush(); stopTour(false); closeAll(); if (reader.isOpen) reader.close();
-  if (space === "library") { doWarp(() => teleport(START, new THREE.Vector3(0, 0, 0))); return; }
-  teleport(START, new THREE.Vector3(0, 0, 0));
+  if (space === "library") { doWarp(() => teleport(START, new THREE.Vector3(0, 0, -10))); return; }
+  teleport(START, new THREE.Vector3(0, 0, -10));
 }
 $("homeBtn").onclick = goHome;
 // 美術館 ⇄ 図書館を、どこからでも（光の輪までは歩かずに。光の輪はそのまま残す）
