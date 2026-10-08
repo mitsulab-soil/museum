@@ -13,6 +13,7 @@ import * as TX from "./tex.js";
 import { esc, fname, licHTML, credit } from "./common.js";
 import { LIB, libWalkable, buildLibrary, createReader, bookList } from "./library.js";
 import { createExhibit } from "./anim3d.js";
+import { createHolo } from "./holo.js";
 
 const M = window.MUSEUM, T = M.tour, VOICE = window.VOICE || {}, NAMES = M.names;   // 表示する名前は names.json だけから
 window.__muBoot = true;
@@ -532,7 +533,14 @@ function syncListener() { const L = AUD.ctx?.listener; if (!L || !L.positionX) r
 
 // 企画展「絵から出てくる生きもの」（2026-10-07 本人）：円堂の扉のわき（その部屋の生きもの）と、左右の壁。素材は data/anim.js（CC0／PD だけ）
 const animWork = a => { const r = rooms.find(x => x.slug === a.room), k = r?.kei.find(x => x.id === a.kei); return { r, k, w: k?.works[a.wi] }; };
-const EX = createExhibit({ THREE, world, rooms, FACES, WF, R, OBST, darkWood, poolMat, clickables, giltMat, brassMat, camera, getRM: () => RM,
+// 碧の場所（生きものが碧へ近づき、手にとまるため）。碧が見えていないときは null
+const _hv = new THREE.Vector3(), _hd = new THREE.Vector3();
+function getAoi() {
+  if (!vrm || !aoi || !aoi.visible || mode !== "walk" || space !== "museum" || !A.pos) return null;
+  const hb = vrm.humanoid?.getRawBoneNode?.("leftHand"), hd = vrm.humanoid?.getRawBoneNode?.("head");
+  return { pos: new THREE.Vector3(A.pos.x, 0, A.pos.z), hand: hb ? hb.getWorldPosition(_hv).clone() : new THREE.Vector3(A.pos.x, 1.1, A.pos.z), head: hd ? hd.getWorldPosition(_hd).clone() : new THREE.Vector3(A.pos.x, 1.5, A.pos.z) };
+}
+const EX = createExhibit({ THREE, world, rooms, FACES, WF, R, OBST, darkWood, poolMat, clickables, giltMat, brassMat, camera, getRM: () => RM, getAoi,
   labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm), onLanded: it => { if (guideIt === it) guideIt = null; } });
 // 部屋の中の絵からも生きものが抜け出る（2026-10-08 本人）：data/anim.js の切り抜きのうち、その絵が部屋の景に掛かっているもの（CC0／PD だけ）
 for (const a of window.ANIM || []) {
@@ -545,6 +553,21 @@ for (const a of window.ANIM || []) {
 CALLS.suzume3 = CALLS.suzume; CALLS.tsubame2 = CALLS.tsubame;
 // 広間に入って最初の一点は、2〜3 秒で抜け出る（2026-10-08 夜の検証「入口から作品の核が見えない」）
 { const near = [...EX.items].sort((p, q) => p.g.position.distanceTo(new THREE.Vector3(0, 0, 3.6)) - q.g.position.distanceTo(new THREE.Vector3(0, 0, 3.6)))[0]; if (near) near.next = 2.5; }
+// 館の 3D 模型・3D 地図・部屋の立体の札（holo.js・2026-10-09 本人）
+const HOLO = createHolo({ THREE, scene, camera, rooms, ENT, LIB_FACE, NF, faceTh, HA, R, HALF, DOOR, VEST, LIB, libWorld, NAMES, GOTH, MINCHO,
+  onOpen: () => { $("holoBar").hidden = false; }, onClose: () => { $("holoBar").hidden = true; } });
+OBST.push({ x: 0, z: -1.9, r: 1.2 });   // 広間のまん中の台
+function holoAct(h) {
+  if (h.t === "open") { HOLO.open(); if (T.idle?.map3d && !SP.resolve) freeTalk([T.idle.map3d]); return; }
+  if (h.t === "room") { if (HOLO.open_ && HOLO.focus !== h.i) { HOLO.setFocus(h.i); return; } HOLO.close(); HOLO.hideRoom(); if (tour.on && !tour.susp) suspendTour(); intro.tok++; enterRoom(h.i, () => freeTalk([T.rooms[h.i].intro[0]])); return; }
+  if (h.t === "zone") { const r = rooms[h.i], z = r.zones[h.zi]; HOLO.close(); HOLO.hideRoom(); hideZones(); if (tour.on && !tour.susp) suspendTour(); intro.tok++;
+    const go = () => { walkTo(W(r.i, z.u0 + 1.0, 0)); me.faceTo = W(r.i, z.u1 + 4, 0); };
+    const reg = region(me.pos.x, me.pos.z); if (reg.kind === "room" && reg.i === h.i) go(); else enterRoom(h.i, go); return; }
+  if (h.t === "lib") { HOLO.close(); goWarp(); return; }
+  if (h.t === "hub") { HOLO.close(); goHome(); return; }
+}
+$("holoClose").onclick = () => HOLO.close();
+$("holo2d").onclick = () => { HOLO.close(); openMap(); };
 let guideIt = null;
 function animTapped(it) {
   if (tour.on && !tour.susp) suspendTour();
@@ -744,7 +767,9 @@ function setZone(z, quiet) {
   const lib_ = z.key === "library", out = z.key === "outside";
   $("rcK").textContent = r ? `第${"一二三四五六七八九十"[z.i] || z.i + 1}室` : lib_ ? NAMES.library_en : NAMES.museum_en;
   $("rcB").textContent = r ? r.name : lib_ ? NAMES.library : out ? NAMES.museum : NAMES.hub; $("rcS").textContent = r ? r.desc : lib_ ? `${NAMES.series}の${rooms.length}冊` : out ? "入口の前" : `${rooms.length}つの部屋と、${NAMES.library}`;
-  const rc = $("roomCard"); rc.classList.add("on"); clearTimeout(setZone.t); setZone.t = setTimeout(() => rc.classList.remove("on"), 2600);
+  const rc = $("roomCard"); clearTimeout(setZone.t);
+  if (r && !OTO) { HOLO.showRoom(r.i, me.pos); rc.classList.remove("on"); }   // 部屋は空中に浮く立体の札（2026-10-09 本人）
+  else { HOLO.hideRoom(); rc.classList.add("on"); setZone.t = setTimeout(() => rc.classList.remove("on"), 2600); }
   if (r && mode === "walk" && !(tour.on && !tour.susp) && !seen.rooms.has(r.i)) {
     seen.rooms.add(r.i); const I = T.rooms[r.i].intro;
     const amb = I.filter(x => /^(いま聞こえて|流れているのは)/.test(x));
@@ -760,7 +785,7 @@ function showZones(r) {
   el.innerHTML = `<div class="zh"><b>${esc(r.name)}</b><small>手前から奥へ　${n} の区画</small><button class="ico x" aria-label="区画の一覧を閉じる">✕</button></div>
     <div class="zplan" aria-hidden="true">${r.zones.map(z => `<i style="flex:${z.ids.length};background:${z.col || "#777"}"></i>`).join("")}</div>
     <div class="zl" role="list">${r.zones.map((z, zi) => `<button role="listitem" data-z="${zi}" style="--c:${z.col || "#777"}"><b>${esc(z.name)}</b><small>${esc(z.sub)}・${z.ids.length} 景</small></button>`).join("")}</div>`;
-  el.hidden = false; requestAnimationFrame(() => el.classList.add("on"));
+  el.classList.toggle("sr3d", !OTO); el.hidden = false; requestAnimationFrame(() => el.classList.add("on"));
   el.querySelector(".x").onclick = hideZones;
   el.querySelectorAll("[data-z]").forEach(b => b.onclick = () => { const z = r.zones[+b.dataset.z]; hideZones(); if (tour.on && !tour.susp) suspendTour(); intro.tok++; walkTo(W(r.i, z.u0 + 1.0, 0)); me.faceTo = W(r.i, z.u1 + 4, 0); });
   clearTimeout(showZones.t); showZones.t = setTimeout(hideZones, 14000);
@@ -931,8 +956,8 @@ const keys = new Set();
 function setFov() { const a = innerWidth / innerHeight; camera.fov = a < .8 ? 72 : a < 1.2 ? 66 : 58; camera.aspect = a; camera.updateProjectionMatrix(); }
 function resize() { renderer.setSize(innerWidth, innerHeight); setFov(); drawMini(); }
 addEventListener("resize", resize);
-function route(to, toWarp) {
-  const a = region(me.pos.x, me.pos.z), b = region(to.x, to.z), pts = [];
+function route(to, toWarp, from = me.pos) {
+  const a = region(from.x, from.z), b = region(to.x, to.z), pts = [];
   const libOut = WF(LIB_FACE, -1.8, 0), libIn = libWorld(new THREE.Vector3(0, 0, LIB.Z - 1.4));
   if (a.kind === "library" && b.kind !== "library") pts.push(libIn, libOut);
   {
@@ -945,7 +970,7 @@ function route(to, toWarp) {
   }
   if (b.kind === "library" && a.kind !== "library") { if (a.kind === "room") pts.push(W(a.i, -1.8, 0)); pts.push(libOut, libIn); }
   pts.push(to.clone());
-  const out = []; let prev = me.pos;
+  const out = []; let prev = from;
   for (const q of pts) {
     const w = steleCut(prev, q) || obsCut(prev, q); if (w) { out.push(w); prev = w; }
     const k = toWarp && q === pts.at(-1) ? null : warpCut(prev, q); if (k) out.push(k);
@@ -1072,6 +1097,9 @@ function hover(e) {
 }
 function pick(x, y) {
   rayAt(x, y);
+  { const hh = HOLO.hit(ray); const reg0 = region(me.pos.x, me.pos.z);
+    if (hh && (hh.holo || (hh.dist < 14 && (reg0.kind === "lobby" || reg0.kind === "entrance")))) { holoAct(hh); return; }
+    if (HOLO.open_) { HOLO.close(); return; } }
   if (aoi?.visible) { const h = ray.intersectObject(aoi, true)[0]; if (h && h.distance < 12) { aoiTapped(); return; } }
   const vis = clickables.filter(o => { let p = o; while (p) { if (!p.visible) return false; p = p.parent; } return true; });
   const hits = ray.intersectObjects([...vis, ...floors, ...blockers, ...ceils], false);
@@ -1175,7 +1203,7 @@ addEventListener("keydown", e => {
   if (reader.isOpen) { reader.key(e); return; }
   if (mode !== "walk") return;
   if (k === "escape") { closeAll(); return; }
-  if (k === "m") { openMap(); return; }
+  if (k === "m") { HOLO.open_ ? HOLO.close() : HOLO.open(); return; }
   if (k === " " && !anySheet()) { e.preventDefault(); pauseSpeech(!SP.paused); return; }
   if (k === "n" && tour.on) { tourNextKei(); return; }
   if (["w", "a", "s", "d", "q", "e", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k) && !anySheet()) { keys.add(k); if (k.startsWith("arrow")) e.preventDefault(); }
@@ -1217,6 +1245,12 @@ async function loadAoi() {
     window.__aoi = { vrm, aoi, A };
   } catch (e) { console.warn("碧の姿を読み込めませんでした（声と字幕で案内します）：", e?.message ?? e); }
 }
+function safeSpot(p) {   // 通れる所へ寄せる（壁の中・壁ぎわ・台の上の目的地を、いちばん近い通れる点に）
+  if (walkable(p.x, p.z, 1.3)) return p;
+  for (let r = .3; r <= 3.6; r += .3) for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r; if (walkable(x, z, 1.3)) return new THREE.Vector3(x, 0, z); }
+  return new THREE.Vector3(me.pos.x, 0, me.pos.z);
+}
+function inView(p) { const v = new THREE.Vector3(p.x, 1.2, p.z).project(camera); return Math.abs(v.x) < 1 && Math.abs(v.y) < 1 && v.z < 1; }
 function aoiJump() {
   if (!aoi) return;
   const s = followSpot(); A.pos = s.clone(); A.vel.set(0, 0, 0); A.yaw = Math.atan2(me.pos.x - s.x, me.pos.z - s.z); A.calm = 1.2; A.fade = 0;
@@ -1245,11 +1279,33 @@ function followSpot() {
 function aoiTick(dt) {
   if (!vrm) return;
   if (mode !== "walk") { aoi.visible = false; return; }
-  const goal = A.goal || followSpot();
-  if (A.pos.distanceTo(goal) > 14) { A.pos.copy(goal); A.vel.set(0, 0, 0); A.calm = 1.2; }
+  // 2026-10-09 本人「碧が壁に向かって歩き続け、こちらが動いてもついてこない」：
+  //   原因＝目的地へまっすぐ引っぱるだけで、壁の向こう（となりの部屋・扉の外）や壁ぎわの通れない所が目的地になると、壁に押しつけられたまま止まっていた。
+  //   直し＝①目的地を通れる所へ寄せる ②人と同じ道すじ（扉を通る）を、碧の位置から引いてたどる ③進めない時間が続いたら、案内の目的地を捨てて人のそばへもどる（見えていなければ近くに出なおす）
+  // 人が離れていったら、案内の目的地を捨てて人について行く（案内中・話している途中はのぞく）
+  if (A.goal && !(tour.on && !tour.susp) && !SP.resolve && Math.hypot(me.pos.x - A.pos.x, me.pos.z - A.pos.z) > 9) { A.goal = null; A.look = null; A.point = 0; }
+  const goal = safeSpot(A.goal || followSpot());
+  if (A.pos.distanceTo(goal) > 14) { A.pos.copy(goal); A.vel.set(0, 0, 0); A.calm = 1.2; A.wp = null; }
+  A.repath = (A.repath || 0) - dt;
+  if (!A.wp || A.repath <= 0 || !A.goalKey || A.goalKey.distanceTo(goal) > .8) { A.wp = route(goal, false, A.pos).map(p => p.setY(0)); A.goalKey = goal.clone(); A.repath = .7; }
+  while (A.wp.length > 1 && Math.hypot(A.wp[0].x - A.pos.x, A.wp[0].z - A.pos.z) < .7) A.wp.shift();
+  const tgt = A.wp[0] || goal;
   const w = A.goal ? 4.2 : 3.4, n = Math.max(1, Math.ceil(dt / .02)), h = dt / n, vmax = 2.6;
+  // 進めないことの見張り
+  const dGoal = Math.hypot(goal.x - A.pos.x, goal.z - A.pos.z);
+  if (!A.lastP) A.lastP = A.pos.clone();
+  A.stuckT = (A.stuckT || 0) + dt;
+  if (A.stuckT > 1.5) {
+    const moved = Math.hypot(A.pos.x - A.lastP.x, A.pos.z - A.lastP.z);
+    if (dGoal > .9 && moved < .25) {
+      A.stuck = (A.stuck || 0) + 1;
+      if (A.goal && A.stuck >= 2) { A.goal = null; A.look = null; A.point = 0; }   // 案内の目的地に行けない → 人のそばへ
+      else if (A.stuck >= 3) { const s = safeSpot(followSpot()); const seen = aoi.visible && inView(A.pos); if (!seen) { A.pos.copy(s); A.vel.set(0, 0, 0); } A.wp = null; A.stuck = 0; }
+    } else A.stuck = 0;
+    A.stuckT = 0; A.lastP.copy(A.pos);
+  }
   for (let i = 0; i < n; i++) {
-    A.vel.x += (w * w * (goal.x - A.pos.x) - 2 * w * A.vel.x) * h; A.vel.z += (w * w * (goal.z - A.pos.z) - 2 * w * A.vel.z) * h;
+    A.vel.x += (w * w * (tgt.x - A.pos.x) - 2 * w * A.vel.x) * h; A.vel.z += (w * w * (tgt.z - A.pos.z) - 2 * w * A.vel.z) * h;
     const m = Math.hypot(A.vel.x, A.vel.z); if (m > vmax) { A.vel.x *= vmax / m; A.vel.z *= vmax / m; }
     const nx = A.pos.x + A.vel.x * h, nz = A.pos.z + A.vel.z * h;
     if (walkable(nx, nz, 1.3) || !walkable(A.pos.x, A.pos.z, 1.3)) { A.pos.x = nx; A.pos.z = nz; } else { A.vel.multiplyScalar(.5); }
@@ -1258,11 +1314,15 @@ function aoiTick(dt) {
   const toCam = Math.atan2(me.pos.x - A.pos.x, me.pos.z - A.pos.z);
   let fy = A.sp > .35 ? Math.atan2(A.vel.x, A.vel.z) : toCam;
   if (A.sp <= .35 && A.look) { const toW = Math.atan2(A.look.x - A.pos.x, A.look.z - A.pos.z); fy = toCam + wrapA(toW - toCam) * .5; }
+  else if (A.sp <= .35) { const wt0 = EX.watch?.(); if (wt0) { const toW = Math.atan2(wt0.pos.x - A.pos.x, wt0.pos.z - A.pos.z); fy = toCam + wrapA(toW - toCam) * .45; } }
   A.yaw += clamp(wrapA(fy - A.yaw) * ease(dt, 4), -2.2 * dt, 2.2 * dt);
   aoi.position.set(A.pos.x, groundY(A.pos.x, A.pos.z), A.pos.z); aoi.rotation.y = A.yaw;
   aoi.visible = Math.hypot(A.pos.x - me.pos.x, A.pos.z - me.pos.z) > .9;
   const lookWork = A.look && A.talkT < 2.6;
-  if (A.gaze) { if (lookWork) A.gaze.position.set(A.look.x, 1.9 + groundY(A.look.x, A.look.z), A.look.z); else A.gaze.position.copy(camera.position); }
+  // 抜け出た生きものを目で追い、とまりそうなら左手を差し出す（2026-10-09 本人）
+  const wt = EX?.watch?.(), watching = wt && !lookWork;
+  A.offer = (A.offer || 0) + ((wt && wt.perch ? 1 : 0) - (A.offer || 0)) * ease(dt, 3);
+  if (A.gaze) { if (lookWork) A.gaze.position.set(A.look.x, 1.9 + groundY(A.look.x, A.look.z), A.look.z); else if (watching) A.gaze.position.copy(wt.pos); else A.gaze.position.copy(camera.position); }
   A.talkT += dt;
   if (A.springs && !RM) { const t = performance.now() / 1000; for (const s of A.springs) { s.j.settings.gravityDir.set(s.g.x + .22 * Math.sin(t * .63 + s.g.y), s.g.y, s.g.z + .14 * Math.sin(t * .41)).normalize(); s.j.settings.gravityPower = Math.max(s.p, .05); } }
   aoiPose(dt, A.sp, wrapA(toCam - A.yaw), lookWork ? wrapA(Math.atan2(A.look.x - A.pos.x, A.look.z - A.pos.z) - A.yaw) : 0);
@@ -1309,9 +1369,11 @@ function aoiPose(dt, sp = 0, toCamLocal = 0, aim = 0) {
   S("leftLowerLeg", lk); S("rightLowerLeg", rk);
   S("leftFoot", -(lt + lk) * .75); S("rightFoot", -(rt + rk) * .75);
   const gst = tk * (1 - ptE) * (1 - k * .6), gw = live ? Math.sin(t * 2 * Math.PI * .33) : 0;
-  S("leftUpperArm", .26 * s1 * k - .05 * (1 - k), 0, -1.3 + .04 * br * (1 - k));
-  S("leftLowerArm", 0, -(.28 + .14 * k + .12 * Math.max(0, -s1) * k), 0);
-  S("leftHand", .05, 0, .12);
+  const of = live ? clamp(A.offer || 0, 0, 1) * (1 - k) : 0, ofE = of * of * (3 - 2 * of);   // 手を差し出す（右手の指さしの形を左に写し、ひじを少し曲げる）
+  const lUA = [.26 * s1 * k - .05 * (1 - k), 0, -1.3 + .04 * br * (1 - k)], lLA = [0, -(.28 + .14 * k + .12 * Math.max(0, -s1) * k), 0], oUA = [-.2, -.95, -.6], oLA = [0, -.45, 0];
+  S("leftUpperArm", ...lUA.map((v, i) => v + (oUA[i] - v) * ofE));
+  S("leftLowerArm", ...lLA.map((v, i) => v + (oLA[i] - v) * ofE));
+  S("leftHand", .05 - .25 * ofE, 0, .12 - .1 * ofE);
   const rUA = [-.26 * s1 * k - .05 * (1 - k) - .16 * gst, 0, 1.3 - .04 * br * (1 - k) - .08 * gst], rLA = [0, .28 + .14 * k + .12 * Math.max(0, s1) * k + (.38 + .1 * gw) * gst, 0];
   const pUA = [-.15, 1.15 + aim * .6, .55], pLA = [0, .12, 0];
   S("rightUpperArm", ...rUA.map((v, i) => v + (pUA[i] - v) * ptE)); S("rightLowerArm", ...rLA.map((v, i) => v + (pLA[i] - v) * ptE));
@@ -1561,7 +1623,7 @@ $("bigmap").addEventListener("click", e => {
   if (l && l.u > -.3 && l.u < rooms[l.i].L) { $("map").hidden = true; enterRoom(l.i, () => freeTalk([T.rooms[l.i].intro[0]])); }
   else if (!l || l.u <= -.3) { $("map").hidden = true; stopTour(false); teleport(START, new THREE.Vector3(0, 0, -10), () => freeTalk([T.lobby.at(-1)])); }
 });
-$("mini").onclick = openMap;
+$("mini").onclick = () => HOLO.open_ ? HOLO.close() : HOLO.open();   // 3D 地図（2026-10-09 本人「どこからでも、ボタン一つで」）
 
 // ---------------------------------------------------------------- 一覧（3D を使わない入口）
 function openList() {
@@ -1578,7 +1640,8 @@ function credits() {
   const snd = new Map(); for (const r of rooms) { for (const k of r.kei) if (k.snd) snd.set(k.snd.f, k.snd); for (const s of r.snd) snd.set(s.f, s); }
   const amb = [["入口の広間", M.amb.lobby], [NAMES.library, M.amb.library], ...rooms.map(r => [r.name, r.amb])].filter(x => x[1]);
   const ambHTML = amb.map(([where, a]) => a.kind === "bgm"
-    ? `<li>${esc(where)}：音楽「${esc(a.title)}」${esc(a.who)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝モノラル化・音量・ループ）</li>`
+    ? (a.page ? `<li>${esc(where)}：音楽「${esc(a.title)}」${esc(a.who)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝モノラル化・音量・ループ）</li>`
+              : `<li>${esc(where)}：音楽「${esc(a.title)}」${esc(a.who)}・${esc(a.lic)}</li>`)
     : `<li>${esc(where)}：録音「${esc(a.label)}」${esc(a.who)}・${esc(a.where)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a></li>`).join("");
   return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>学校の授業で、教室の画面に映して使ってかまいません（作品の権利の表示は、作品の札のとおり）。めやすは、広間だけなら 2 分、一部屋なら 10 分ほど。</p><p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
   図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。
@@ -1689,6 +1752,7 @@ function tick() {
   if (marker.material.opacity > 0) marker.material.opacity = Math.max(0, marker.material.opacity - dt * .9);
   exploreTick(dt); stepTick(dt); syncListener();
   EX.tick(dt, tt, mode === "walk" && space === "museum");
+  HOLO.tick(dt, me.pos, me.yaw, region, local, aoi?.visible ? A.pos : null, tt);
   acc += dt; if (acc > .3) { acc = 0;
     const nsp = region(me.pos.x, me.pos.z).kind === "library" ? "library" : "museum";
     if (nsp !== space) { space = nsp; document.body.classList.toggle("inlib", space === "library"); $("shelfBar").hidden = space !== "library";
@@ -1835,5 +1899,5 @@ if (OTO) {
 
 // 確かめ用（Playwright）
 window.__mu = { featBay, rooms, bays, me, A, tour, SP, AUD, T, zone, NAMES, LIBW, reader, intro, get space() { return space; }, get vrm() { return vrm; }, get frames() { return frames; }, get mode() { return mode; }, renderer, camera, scene,
-  showZones, runTour, tourNextKei, enterRoom, openPanel, openMap, openList, approach, approachBook, region, walkable, pick, goTo, streamBays, goWarp, doWarp, goHome, introWalk, wake, E, VEST, get EX() { return EX; },
+  HOLO, holoAct, showZones, runTour, tourNextKei, enterRoom, openPanel, openMap, openList, approach, approachBook, region, walkable, pick, goTo, streamBays, goWarp, doWarp, goHome, introWalk, wake, E, VEST, get EX() { return EX; },
   info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tex: renderer.info.memory.textures, geo: renderer.info.memory.geometries }) };

@@ -5,6 +5,11 @@
 <meta name="tdm-reservation" content="1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>森羅博物館</title>
+<link rel="icon" href="favicon/favicon.ico" sizes="any">
+<link rel="icon" href="favicon/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicon/apple-touch-icon.png">
+<link rel="manifest" href="favicon/manifest.webmanifest">
+<meta name="theme-color" content="#03060f">
 <meta name="description" content="森羅博物館（Shinra Museum）。森羅百景の八つの連作を、碧と歩いて巡る博物館。書架の間では、一冊ずつ手にとって読める。">
 <meta property="og:title" content="森羅博物館">
 <meta property="og:description" content="森羅百景の八つの連作を、碧と歩いて巡る博物館。">
@@ -184,6 +189,13 @@ body.oto #guide{bottom:calc(230px + env(safe-area-inset-bottom));width:calc(100v
 body.oto #say{font-size:19px;color:#fff}
 @media (min-width:760px){body.oto #guide{bottom:110px}}
 body.oto #hint,body.oto #zones{display:none!important}
+/* 3D の地図の下の帯（2026-10-09） */
+#holoBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(10px,env(safe-area-inset-bottom)) + 4px);z-index:8;display:flex;gap:8px}
+#holoBar[hidden]{display:none}
+#holoBar .btn{min-height:44px;font-size:15px;padding:0 14px;background:rgba(20,14,8,.82);border-color:rgba(255,240,210,.3);color:#f6efdf}
+#holoBar .btn.pri{background:color-mix(in srgb,var(--gold) 80%,transparent);color:#1b140c}
+/* 部屋の区画の一覧は、画面では 3D の札に任せ、読み上げ用に残す（2026-10-09） */
+#zones.sr3d{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #otoRooms{z-index:40;display:flex;flex-direction:column;gap:8px;padding:16px;background:#0b0907}
 #otoRooms[hidden]{display:none}
 #otoRooms h2{color:#fff;font-size:24px;margin:4px 0 8px}
@@ -326,6 +338,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 
 <nav id="shelfBar" hidden aria-label="書架の本"></nav>
 <section id="zones" hidden aria-label="この部屋の区画"></section>
+<div id="holoBar" hidden><button class="btn" id="holo2d">平面の地図</button><button class="btn pri" id="holoClose">地図をとじる</button></div>
 <!-- 音で巡る館（?mode=oto）：大きなボタン。画面を見なくても、スクリーンリーダーでもキーボードでも -->
 <nav id="otoBar" hidden aria-label="音で巡る館の操作">
   <button id="otoBack" class="ob" aria-keyshortcuts="ArrowLeft">◀ 戻る</button>

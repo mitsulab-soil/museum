@@ -137,7 +137,17 @@ export function createExhibit(o) {
   // ---------------------------------------------------------------- 道すじ
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   function restPose(it, pt) { const p = pt.local.clone().applyMatrix4(it.g.matrixWorld); const n = V(0, 0, 1).applyQuaternion(it.g.getWorldQuaternion(new THREE.Quaternion())); return { p, n }; }
+  // 2026-10-09 本人「絵から出た生きものは、すぐ視野の外へ行かず、画面の中で動く。碧に近づく・碧のまわりを回る・碧の手や肩にとまる・碧が目で追う・手を差し出す」
+  //   → 碧が近く（9 m 以内）にいるときは「碧へ」の道（kind＝aoi）。毎こま碧の位置から組みなおす（碧は動くので）。
+  //   段：抜け出る → 碧へ近づく → 碧のまわりを回る → 小さな鳥・蝶・蜻蛉は碧の差し出した手にとまる（大きな鳥・魚・地面のものは、碧のそばで止まる）→ 絵へもどる
+  const NEAR = { sparrow: .26, swallow: .3, warbler: .24, butterfly: .2, dragonfly: .22, goose: .9, heron: .8, carp: .5, hare: .45, smallbird: .26 };
+  const PERCH = new Set(["sparrow", "swallow", "warbler", "butterfly", "dragonfly", "smallbird"]);
+  let watch = null;   // 碧が目で追うもの：{ pos, perch }
   function makePath(it, pt, k, mode) {
+    if (mode === "show" && o.getAoi) {
+      const A = o.getAoi(), { p } = restPose(it, pt);
+      if (A && A.pos.distanceTo(V(p.x, 0, p.z)) < 16) return { kind: "aoi" };
+    }
     const { p, n } = restPose(it, pt), st = pt.st, pts = [p.clone(), p.clone().addScaledVector(n, .7)];
     const door = mode === "guide" ? WF(it.r, .9, 0) : null;
     if (st.ground) {
@@ -188,6 +198,7 @@ export function createExhibit(o) {
     it.parts.forEach((pt, k) => {
       pt.path = makePath(it, pt, k, mode); pt.m.visible = true; pt.mat.uniforms.uOp.value = 1;
       pt.delay = pt.st.flock ? k * .55 : k * .35;
+      if (pt.path.kind === "aoi") { pt.ap = { ph: 0, pt: 0, pos: restPose(it, pt).p.clone(), ang: Math.random() * 6.28, dir: k % 2 ? 1 : -1 }; pt.curve = null; pt.done = false; return; }
       if (pt.path.kind === "curve" || pt.path.kind === "dart") pt.curve = new THREE.CatmullRomCurve3(pt.path.pts, false, "centripetal", .5);
       else pt.curve = new THREE.CatmullRomCurve3(pt.path.up.concat([pt.path.floor]), false, "centripetal", .5);
       pt.done = false;
@@ -225,6 +236,7 @@ export function createExhibit(o) {
     }
     if (st.swim) { u.uWave.value = pt.bh * .07; u.uWaveP.value = t * 1.3 * Math.PI * 2; }
     if (st.dart) u.uShim.value = .015;
+    if (pt.path.kind === "aoi") return aoiTick(it, pt, dt, T, t);
     const D = it.mode === "show-back" ? 4.5 : it.mode === "guide" ? (st.ground ? st.dur : Math.min(st.dur * .55, 9)) : st.dur;
     if (pt.path.kind === "ground") return groundTick(it, pt, t, D);
     let s = clamp01(t / D);
@@ -237,6 +249,54 @@ export function createExhibit(o) {
     orient(pt, pos, F, !!(st.wander || st.swim || st.dart));
     if (s >= 1 && !pt.path.hold) { pt.done = true; restAt(it, pt); }
     return s >= 1;
+  }
+  function aoiTick(it, pt, dt, T, t) {
+    const st = pt.st, S = pt.ap, A = o.getAoi && o.getAoi(), { p, n } = restPose(it, pt), u = pt.mat.uniforms;
+    const near = Math.max(1, Math.min(7, (NEAR[it.a.style] || .3) / Math.max(pt.bw, pt.bh)));
+    const ground = !!st.ground, perch = PERCH.has(it.a.style);
+    const spd = ground ? (st.ground === "hop" ? 1.5 : .7) : st.swim ? .9 : it.a.style === "butterfly" ? 1.1 : it.a.style === "goose" ? 1.6 : 2.0;
+    S.pt += dt; let pos = S.pos, F = V(n.x, 0, n.z);
+    if (!A && S.ph < 4) { S.ph = 4; S.pt = 0; S.from = pos.clone(); }
+    const head = A ? A.head : null, hand = A ? A.hand : null, base = A ? A.pos : null;
+    const flyH = st.swim ? 1.25 : it.a.style === "goose" ? 2.6 : 1.95;
+    const orbitR = ground ? 1.05 : st.swim ? 1.0 : it.a.style === "goose" ? 1.8 : .85;
+    const orbitPt = ang => ground ? V(base.x + Math.cos(ang) * orbitR, 0, base.z + Math.sin(ang) * orbitR) : V(base.x + Math.cos(ang) * orbitR, flyH + Math.sin(ang * 2) * .12, base.z + Math.sin(ang) * orbitR);
+    const step = (to, v) => { const d = to.clone().sub(pos), L = d.length(); if (L > 1e-4) { F = d.clone(); pos.addScaledVector(d, Math.min(1, v * dt / L)); } return L; };
+    if (S.ph === 0) {   // 抜け出る：絵の前へ浮かび出て、大きくなる
+      const k = Math.min(1, S.pt / 1.0); pos.copy(p).addScaledVector(n, .2 + .8 * k); pt.sc = 1 + (near - 1) * smooth(k);
+      if (ground) pos.y = Math.max(p.y - k * (p.y - pt.bh * pt.sc / 2), pt.bh * pt.sc / 2);
+      if (k >= 1) { S.ph = 1; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); }
+    } else if (S.ph === 1) {   // 碧へ近づく（回りはじめの点へ）
+      const L = step(orbitPt(S.ang), spd); if (ground) pos.y = pt.bh * pt.sc / 2 + (st.ground === "hop" ? Math.abs(Math.sin(S.pt * 4.2)) * .3 : 0);
+      if (L < .25 || S.pt > 8) { S.ph = 2; S.pt = 0; }
+    } else if (S.ph === 2) {   // 碧のまわりを回る
+      const w = spd / orbitR * (st.swim ? .8 : 1); S.ang += S.dir * w * dt; const q = orbitPt(S.ang); F = q.clone().sub(pos); pos.lerp(q, Math.min(1, dt * 6));
+      if (ground) pos.y = pt.bh * pt.sc / 2 + (st.ground === "hop" ? Math.abs(Math.sin(S.pt * 4.2)) * .3 : 0);
+      const loops = ground ? 1 : 1.4;
+      if (S.pt * w > loops * Math.PI * 2) { S.ph = perch && hand ? 3 : 5; S.pt = 0; }
+    } else if (S.ph === 3) {   // 差し出した手へ
+      pt.sc += (near * .72 - pt.sc) * Math.min(1, dt * 3);   // 手にとまるときは、少し小さく（手の大きさに合わせて）
+      const to = hand.clone().add(V(0, .05 + pt.bh * pt.sc * .35, 0)); const L = step(to, 1.4);
+      if (L < .06 || S.pt > 3) { S.ph = 31; S.pt = 0; }
+    } else if (S.ph === 31) {   // 手にとまる（翼をたたむ）
+      pos.copy(hand).add(V(0, .05 + pt.bh * pt.sc * .35, 0)); F = V(head.x - pos.x, 0, head.z - pos.z).negate();
+      if (st.flapHz) u.uA.value += (-.15 - u.uA.value) * Math.min(1, dt * 8);
+      if (S.pt > 3.4) { S.ph = 4; S.pt = 0; S.from = pos.clone(); }
+    } else if (S.ph === 5) {   // 大きな鳥・魚・地面のもの：碧のそばで少し止まる
+      if (ground) pos.y = pt.bh * pt.sc / 2; F = V(base.x - pos.x, 0, base.z - pos.z);
+      if (st.flapHz && it.a.style !== "goose") u.uA.value += (-.15 - u.uA.value) * Math.min(1, dt * 8);
+      if (S.pt > (ground ? 2.6 : 1.2)) { S.ph = 4; S.pt = 0; S.from = pos.clone(); }
+    } else if (S.ph === 4) {   // 絵へもどる
+      if (!S.curve) S.curve = new THREE.CatmullRomCurve3([S.from, S.from.clone().lerp(p, .5).setY(Math.max(p.y, S.from.y) + (ground ? .2 : .5)), p.clone().addScaledVector(n, .5), p.clone()], false, "centripetal", .5);
+      const D = Math.max(1.6, S.from.distanceTo(p) / (spd * 1.2)), k = Math.min(1, S.pt / D), s = smooth(k);
+      pos.copy(S.curve.getPointAt(s)); F = S.curve.getTangentAt(Math.min(.999, Math.max(.001, s))); pt.sc = 1 + (near - 1) * smooth(1 - Math.max(0, (k - .55) / .45));
+      pt.mat.uniforms.uOp.value = 1 - smooth(Math.max(0, (k - .92) / .08));
+      if (k >= 1) { pt.done = true; restAt(it, pt); S.curve = null; return true; }
+    }
+    if (S.ph !== 4) pt.mat.uniforms.uOp.value = Math.min(1, t / .5);
+    orient(pt, pos, F, !!(ground || st.wander || st.swim || st.dart));
+    if (S.ph >= 1 && S.ph !== 4) watch = { pos: pos.clone(), perch: S.ph === 3 || S.ph === 31, t: performance.now() };
+    return false;
   }
   function groundTick(it, pt, t, D) {
     const st = pt.st, ph = pt.path;
@@ -324,5 +384,5 @@ export function createExhibit(o) {
   function release(it) { it.release = true; it.arrived = true; }
   function react(it) { if (it.state === "rest") return false; it.react = .9; return true; }
   function abort(it) { for (const pt of it.parts) { pt.m.visible = false; pt.done = true; pt.hold = false; } it.state = "rest"; it.release = false; }
-  return { items, roomItems, attach, tick, start, guide, release, abort, react, find: id => items.find(i => i.a.id === id) };
+  return { items, roomItems, attach, watch: () => (watch && performance.now() - watch.t < 300 ? watch : null), tick, start, guide, release, abort, react, find: id => items.find(i => i.a.id === id) };
 }
