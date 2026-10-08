@@ -21,6 +21,15 @@ mitsulab の連作《森羅百景》の作品を、3D の館で見る・読む�
 - 企画展の生きものの鳴き声：Wikimedia Commons の録音（ウグイス＝nnn・CC BY 2.1 JP／ツバメ＝Justin Wasack・CC BY 3.0／ダイサギ＝Stanislas Wroza・CC BY 4.0）、Freesound の録音（スズメ＝Yle Arkisto・CC BY 4.0）。改変＝切り出し・音量。
 - 碧の 3D の姿：© mitsulab（このページの中で表示するためだけに置いています。持ち出し・再配布はできません）。
 - 表示の道具：three.js・three-vrm（MIT）。
+- 韓国語の字の書体：Noto Serif KR（SIL Open Font License 1.1）を使う字だけに絞った写し。
 - 書架の間の『観天望気』は、mitsulab が典拠を当たって書いたことばの本です（●根拠あり／◐部分的／○伝承のしるしつき）。
+
+## 著作権 ／ Copyright
+
+© 2026 mitsulab. All rights reserved. この作品の文章・画像・音声・3D・プログラムの著作権は、別に示した他者の素材を除き mitsulab にあります。無断の複製・転載・改変と、AI の学習・生成への利用はお断りします（テキスト・データマイニングの権利を留保します）。[利用規約](https://mitsulab.jp/terms/#ai)
+
+© 2026 mitsulab. All rights reserved. Copyright in the text, images, audio, 3D and software of this work belongs to mitsulab, except third-party materials credited separately. Copying, reposting or modifying them without permission, and using them for AI training or generation, are not permitted. Text and data mining rights are reserved. [Terms](https://mitsulab.jp/terms/#ai-en)
+
+他者の素材（CC0・CC BY・CC BY-SA・VOICEVOX・OFL の書体など）は、上の「出典とライセンス」のとおり、それぞれの条件に従います。
 
 © mitsulab（さいたま市）　official@mitsulab.jp

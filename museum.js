@@ -233,7 +233,8 @@ const shadowMat = new THREE.MeshBasicMaterial({ map: radial([[0, "rgba(0,0,0,.5)
 const blobMat = new THREE.MeshBasicMaterial({ map: radial([[0, "rgba(10,6,2,.45)"], [1, "rgba(10,6,2,0)"]]), transparent: true, depthWrite: false });
 
 // 文字の板
-const MINCHO = '"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif', GOTH = '"Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif';
+const MINCHO = '"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","KRsub",serif', GOTH = '"Hiragino Sans","Yu Gothic","Noto Sans JP","KRsub",sans-serif';
+document.fonts?.load('20px "KRsub"', "ᄆᆞᆰ구").catch(() => {});   // 3D の札（canvas）に描く前に、韓国語の字の書体を読んでおく（2026-10-08）
 function textPlane(wm, hm, draw, px = 512) {
   const c = document.createElement("canvas"); c.width = px; c.height = Math.round(px * hm / wm); const g = c.getContext("2d"); draw(g, c.width, c.height);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAXANI;
@@ -635,6 +636,7 @@ function loadImg(url) { return new Promise((res, rej) => { const im = new Image(
 async function hang(bay, sl) {
   const w = sl.w;
   if (sl.quote) {
+    if (/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7FF]/.test((w.quote || "") + (w.author || ""))) { await document.fonts.load('20px "KRsub"', w.quote || "").catch(() => {}); if (!bay.near || sl.mesh) return; }   // 韓国語の字の書体を読んでから描く
     const q = quoteCard(w, bay.r.acc); q.position.set(sl.x, sl.y, .02); bay.g.add(q); sl.mesh = q; sl.ph.visible = false;
     q.userData = { bay, slot: sl }; clickables.push(q); return;
   }
@@ -1584,7 +1586,7 @@ function credits() {
   <h3>部屋の音と音楽</h3><ul>${ambHTML}</ul>
   <p>景の音（${snd.size} 本）は mitsulab が録ったものではなく、Wikimedia Commons で公開されている他の人の野外録音です。録音者・録音地・権利は景の札に出します。</p>
   <h3>碧の声</h3><p>VOICEVOX:冥鳴ひまり（前もって声にした一文ずつ。話したことばは字幕にそのまま出します）。碧の言葉は、森羅百景の解説・作品の表・録音の台帳からだけ組んだ事実と、新しい事実を入れない雑談でできています。話したことは保存しません（端末に覚えるのは、設定と、最後に立っていた場所だけ）。</p>
-  <h3>館のつくり</h3><p>部屋の床：Poly Haven「<a href="https://polyhaven.com/a/herringbone_parquet" target="_blank" rel="noopener">Herringbone Parquet</a>」、玄関と円堂の大理石の磨きのむら：「<a href="https://polyhaven.com/a/marble_01" target="_blank" rel="noopener">Marble 01</a>」、石の壁の凹凸：「<a href="https://polyhaven.com/a/castle_brick_02_white" target="_blank" rel="noopener">Castle Brick 02 White</a>」、絨毯の毛足：「<a href="https://polyhaven.com/a/dirty_carpet" target="_blank" rel="noopener">Dirty Carpet</a>」（どれも CC0。凹凸と磨きだけを借りています）。大理石・石・漆喰・腰板・絨毯の色と文様・天窓・窓の外の景色は、この画面の中でその場で描いています。碧の 3D の姿は © mitsulab（この作品の中で表示するためだけに置いています。持ち出し・再配布はできません）。表示の道具は three.js と three-vrm（MIT）。</p>`;
+  <h3>館のつくり</h3><p>部屋の床：Poly Haven「<a href="https://polyhaven.com/a/herringbone_parquet" target="_blank" rel="noopener">Herringbone Parquet</a>」、玄関と円堂の大理石の磨きのむら：「<a href="https://polyhaven.com/a/marble_01" target="_blank" rel="noopener">Marble 01</a>」、石の壁の凹凸：「<a href="https://polyhaven.com/a/castle_brick_02_white" target="_blank" rel="noopener">Castle Brick 02 White</a>」、絨毯の毛足：「<a href="https://polyhaven.com/a/dirty_carpet" target="_blank" rel="noopener">Dirty Carpet</a>」（どれも CC0。凹凸と磨きだけを借りています）。大理石・石・漆喰・腰板・絨毯の色と文様・天窓・窓の外の景色は、この画面の中でその場で描いています。碧の 3D の姿は © mitsulab（この作品の中で表示するためだけに置いています。持ち出し・再配布はできません）。表示の道具は three.js と three-vrm（MIT）。韓国語の字は Noto Serif KR（SIL Open Font License 1.1）の、使う字だけの写しで出しています。</p>`;
 }
 $("credAll").innerHTML = credits();
 $("menuBtn").onclick = () => { closeAll(); $("menu").hidden = false; };

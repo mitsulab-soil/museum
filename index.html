@@ -2,12 +2,15 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta name="tdm-reservation" content="1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>森羅博物館</title>
 <meta name="description" content="森羅博物館（Shinra Museum）。森羅百景の八つの連作を、碧と歩いて巡る美術館と、一冊ずつ手にとって読む図書館。">
 <style>
 :root{--bg:#15110c;--ink:#efe6d2;--dim:#b9ab92;--line:#4a3d2c;--card:#211a12;--card2:#2b2217;--gold:#c9a45c;--gold2:#e7cf93;--aoi:#4fb3a8;--aoi2:#18322f;--paper:#f6efdf;--pink:#2a2018;
-  --shadow:0 10px 36px rgba(0,0,0,.45);--mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;--goth:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif}
+  --shadow:0 10px 36px rgba(0,0,0,.45);--mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","KRsub",serif;--goth:"Hiragino Sans","Noto Sans JP","Yu Gothic","KRsub",system-ui,sans-serif}
+/* 韓国語の字（古いハングルを含む）だけ：Noto Serif KR の写し（OFL・fonts/README.md）。2026-10-08 */
+@font-face{font-family:"KRsub";src:url("fonts/kr_sub.woff2") format("woff2");unicode-range:U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7FF;font-display:swap}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--goth);-webkit-text-size-adjust:100%;font-size:16px}
 #stage{position:fixed;inset:0;touch-action:none;outline:none}
@@ -363,6 +366,8 @@ body.oto #hint,body.oto #zones{display:none!important}
   <p class="cred-all">床を押す＝そこへ歩く ／ 作品を押す＝前まで行って碧が話す（もう一度で札） ／ ドラッグ＝見回す ／ 地図＝部屋へ移る ／ キーボード＝W A S D・矢印で歩く、Q E で向きを変える、スペースで碧の話を止める・続ける、N で次へ、M で地図、Esc で閉じる。</p>
   <h2 style="margin-top:18px">出典とライセンス</h2>
   <div class="cred-all" id="credAll"></div>
+  <p class="cred-all" style="margin-top:10px">© 2026 mitsulab. All rights reserved. この作品の文章・画像・音声・3D・プログラムの著作権は、別に示した他者の素材を除き mitsulab にあります。無断の複製・転載・改変と、AI の学習・生成への利用はお断りします（テキスト・データマイニングの権利を留保します）。<a href="https://mitsulab.jp/terms/#ai" target="_blank" rel="noopener">利用規約</a></p>
+  <p class="cred-all" lang="en" style="margin-top:6px">© 2026 mitsulab. All rights reserved. Copyright in the text, images, audio, 3D and software of this work belongs to mitsulab, except third-party materials credited separately. Copying, reposting or modifying them without permission, and using them for AI training or generation, are not permitted. Text and data mining rights are reserved. <a href="https://mitsulab.jp/terms/#ai-en" target="_blank" rel="noopener">Terms</a></p>
 </div></div>
 
 <!-- 2026-10-07 本人「TOP の選択のページをやめる：開いたらはじめから博物館の中にいる（入口に立っている）形に」。読み込みのあいだだけ、館の名と細い帯 -->
