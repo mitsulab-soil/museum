@@ -87,7 +87,10 @@ body.inlib #listBtn{display:none}
   #acts{margin-right:30px}
 }
 body.reading-aloud #guide{display:flex!important;z-index:31}
-@media (max-width:760px){body.reading-aloud #guide{top:auto;bottom:calc(max(8px,env(safe-area-inset-bottom)) + 138px);pointer-events:none}body.reading-aloud #guide button{pointer-events:auto}}   /* 本の見出しを隠さないよう、頁の下（めくるボタンの上）へ（2026-10-08 検証） */
+@media (max-width:760px){   /* スマホで本を読むとき：字幕は頁の外（いちばん下）に。頁はその分だけ上に縮める（2026-10-08 夜の検証：本文に重なっていた） */
+  body.reading-aloud #reader{padding-bottom:calc(max(8px,env(safe-area-inset-bottom)) + 104px)}
+  body.reading-aloud #guide{top:auto;bottom:max(6px,env(safe-area-inset-bottom));max-height:98px;overflow:auto}
+  body.reading-aloud #say{font-size:13.5px;line-height:1.4}}   /* 本の見出しを隠さないよう、頁の下（めくるボタンの上）へ（2026-10-08 検証） */
 /* 札（作品の説明） */
 #panel{position:fixed;z-index:8;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 @media (min-width:821px){#panel{top:130px;right:12px;bottom:12px;width:420px;border-radius:18px}}
@@ -283,9 +286,9 @@ body.oto #hint,body.oto #zones{display:none!important}
 .blank{position:absolute;inset:0;display:grid;place-items:center;color:#a8946c;font-family:var(--mincho);font-size:16px;letter-spacing:.3em}
 </style>
 <script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-"@pixiv/three-vrm":"https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.min.js"}}
+{"imports":{"three":"./vendor/three/build/three.module.js",
+"three/addons/":"./vendor/three/examples/jsm/",
+"@pixiv/three-vrm":"./vendor/three-vrm/three-vrm.module.min.js"}}
 </script>
 </head>
 <body>

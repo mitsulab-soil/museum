@@ -543,6 +543,8 @@ for (const a of window.ANIM || []) {
   EX.attach(a, r, bay.g, sl.x, sl.y, .07 + .064, ww, hh, k.side, k.u);
 }
 CALLS.suzume3 = CALLS.suzume; CALLS.tsubame2 = CALLS.tsubame;
+// 広間に入って最初の一点は、2〜3 秒で抜け出る（2026-10-08 夜の検証「入口から作品の核が見えない」）
+{ const near = [...EX.items].sort((p, q) => p.g.position.distanceTo(new THREE.Vector3(0, 0, 3.6)) - q.g.position.distanceTo(new THREE.Vector3(0, 0, 3.6)))[0]; if (near) near.next = 2.5; }
 let guideIt = null;
 function animTapped(it) {
   if (tour.on && !tour.susp) suspendTour();
@@ -788,7 +790,7 @@ function exploreTick(dt) {
   if (best) { explore.still = 0; explainBay(best); }
 }
 function explainBay(b) {
-  seen.bays.add(b); explore.bay = b; talkKind = "bay";
+  seen.bays.add(b); explore.bay = b; talkKind = "bay"; talkAt = { i: b.r.i, j: b.k.j };
   const K = T.rooms[b.r.i].kei[b.k.j], narrow = innerWidth / innerHeight < .8, inv = new THREE.Vector3(me.pos.x, 0, me.pos.z).sub(b.center).applyAxisAngle(new THREE.Vector3(0, 1, 0), -b.facing);
   A.goal = new THREE.Vector3(inv.x < -.8 ? (narrow ? .95 : 2.6) : (narrow ? -.95 : -2.6), 0, narrow ? 1.35 : 1.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), b.facing).add(b.center);
   A.look = b.center.clone();
@@ -1382,7 +1384,7 @@ async function runTour(i, j0 = -1) {
   for (let j = j0; j < r.kei.length; j++) {
     tour.j = j; setActs(tourActs());
     if (!await walkToKei(j, tk)) return;
-    const K = TR.kei[j];
+    const K = TR.kei[j]; talkAt = { i, j };
     const ok = await sayQ([...K.lines, K.side], { before: (t, n) => { A.point = n === 1 ? 1 : 0; A.talkT = 0; } });
     if (!ok || tk !== tour.tok) return;
     A.point = 0;
@@ -1610,13 +1612,14 @@ $("guideFold").onclick = e => { e.stopPropagation(); fold(!$("guide").classList.
 $("guide").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && $("guide").classList.contains("folded")) { e.preventDefault(); e.stopPropagation(); fold(false); setActs(curActs()); } });
 $("guide").addEventListener("click", () => { if ($("guide").classList.contains("folded")) { fold(false); setActs(curActs()); } });
 let toastT = 0; function toast(s) { const t = $("toast"); t.textContent = s; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 1800); }
-let lastWhere = "";
+let lastWhere = "", talkAt = null;   // talkAt＝碧がいま話している景（場所の札はこれを優先・2026-10-08 夜の検証）
 function updWhere() {
   if (mode !== "walk") return;
+  if (talkAt && !OTO && !$("guide").classList.contains("talking") && !(tour.on && !tour.susp)) talkAt = null;   // 話し終えたら、立つ位置で
   const reg = region(me.pos.x, me.pos.z); let a = NAMES.museum, b = NAMES.hub;
   if (reg.kind === "library") { a = NAMES.library; b = reader.isOpen ? "読んでいる本" : "書架から一冊をえらぶ"; }
   else if (reg.kind === "entrance") { b = reg.u > VEST ? "入口の前" : "玄関"; }
-  else if (reg.kind === "room") { const r = rooms[reg.i]; a = r.name; const kk = r.keiAt(clamp(Math.floor((reg.u - FOY) / BAY), 0, r.rows - 1), reg.v > 0 ? 1 : -1), j = kk ? kk.j : 0; const zn = kk && r.zones?.length > 1 ? r.zones[kk.genre]?.name + "　" : ""; b = reg.u < FOY ? r.desc : `${zn}${r.kei[j]?.no || ""}　${r.kei[j]?.name || ""}`; }
+  else if (reg.kind === "room") { const r = rooms[reg.i]; a = r.name; const kk = talkAt && talkAt.i === reg.i ? r.kei[talkAt.j] : r.keiAt(clamp(Math.floor((reg.u - FOY) / BAY), 0, r.rows - 1), reg.v > 0 ? 1 : -1), j = kk ? kk.j : 0; const zn = kk && r.zones?.length > 1 ? r.zones[kk.genre]?.name + "　" : ""; b = reg.u < FOY ? r.desc : `${zn}${r.kei[j]?.no || ""}　${r.kei[j]?.name || ""}`; }
   const s = a + "|" + b; if (s !== lastWhere) { lastWhere = s; $("whereName").textContent = a; $("whereSub").textContent = b; }
 }
 
@@ -1747,7 +1750,7 @@ function otoLines(st) {
 }
 function otoGo(n, quick) {
   if (reader.isOpen && otoStops[oto.at]?.t !== "book") reader.close();
-  oto.at = (n + otoStops.length) % otoStops.length; const st = otoStops[oto.at], tk = ++oto.tok;
+  oto.at = (n + otoStops.length) % otoStops.length; const st = otoStops[oto.at], tk = ++oto.tok; talkAt = st.t === "kei" ? { i: st.i, j: st.j } : null;
   hush(); closeAll(); if (tour.on) stopTour(false);
   const [p, look] = otoPlace(st);
   const arrive = () => {
@@ -1778,7 +1781,7 @@ function otoMore() {   // くわしく：いまの所の、本の見開き（景
   talk(otoLines(st).filter(Boolean), otoActs());
 }
 const SCsent = t => (t.match(/[^。！？]+[。！？]?/g) || []).map(x => x.trim()).filter(Boolean);
-function otoWhere() { const st = otoStops[oto.at]; if (!st) return; const w = st.t === "kei" ? T.rooms[st.i].kei[st.j].where : null; talk([w || otoLines(st).filter(Boolean)[0]], otoActs()); }   // 部屋・区画・景の名まで（2026-10-08 検証）
+function otoWhere() { const st = otoStops[oto.at]; if (!st) return; const w = st.t === "kei" ? T.rooms[st.i].kei[st.j].where : st.t === "exh" ? (T.anim || {})[st.it.a.id]?.where : null; talk([w || otoLines(st).filter(Boolean)[0]], otoActs()); }   // 部屋・区画・景の名まで（2026-10-08 検証）
 function otoRooms() {
   const el = $("otoRooms"); el.innerHTML = `<h2>部屋をえらぶ</h2>` + rooms.map((r, i) => `<button data-r="${i}">${i + 1}　${esc(r.name)}<small>${esc(r.desc)}</small></button>`).join("") + `<button data-r="lib">${esc(NAMES.library)}<small>本を見開きで読む</small></button><button data-r="x">閉じる</button>`;
   el.hidden = false; el.querySelector("button").focus();
