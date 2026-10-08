@@ -1737,7 +1737,10 @@ function otoLines(st) {
   if (st.t === "room") return T.rooms[st.i].intro;
   if (st.t === "kei") { const K = T.rooms[st.i].kei[st.j], k = rooms[st.i].kei[st.j], z = rooms[st.i].zones?.[k.genre], first = rooms[st.i].kei.find(x => x.genre === k.genre) === k;
     // 部屋の奥へ向いて、右の壁か左の壁か（2026-10-07 本人「館の構造を音と言葉で伝える」）。区画のはじめでは区画の名も
-    return [first && z && rooms[st.i].zones.length > 1 ? `${z.name}。` : null, (st.j === 0 ? (k.side > 0 ? O.right1 : O.left1) : null) || (k.side > 0 ? O.right : O.left), ...K.lines, K.side].filter(Boolean); }
+    const zsd = z && rooms[st.i].zones.length > 1 ? T.rooms[st.i].zone_side?.[z.name] : null, R_ = k.side > 0;
+    // 区画の名と壁の向きを一文に（2026-10-08 検証）。区画のはじめ＝「田畑の区画、右の壁です。」、あとは「右の壁です。」
+    const head = zsd && first ? (st.j === 0 ? (R_ ? zsd.r1 : zsd.l1) : (R_ ? zsd.r : zsd.l)) : (st.j === 0 ? (R_ ? O.right1 : O.left1) : (R_ ? O.right : O.left));
+    return [head, ...K.lines, K.side].filter(Boolean); }
   if (st.t === "lib") return [O.lib, ...T.library.slice(0, 1)];
   if (st.t === "book") return [];
   return [O.end];
@@ -1775,7 +1778,7 @@ function otoMore() {   // くわしく：いまの所の、本の見開き（景
   talk(otoLines(st).filter(Boolean), otoActs());
 }
 const SCsent = t => (t.match(/[^。！？]+[。！？]?/g) || []).map(x => x.trim()).filter(Boolean);
-function otoWhere() { const st = otoStops[oto.at]; if (!st) return; talk([otoLines(st).filter(Boolean)[0]], otoActs()); }
+function otoWhere() { const st = otoStops[oto.at]; if (!st) return; const w = st.t === "kei" ? T.rooms[st.i].kei[st.j].where : null; talk([w || otoLines(st).filter(Boolean)[0]], otoActs()); }   // 部屋・区画・景の名まで（2026-10-08 検証）
 function otoRooms() {
   const el = $("otoRooms"); el.innerHTML = `<h2>部屋をえらぶ</h2>` + rooms.map((r, i) => `<button data-r="${i}">${i + 1}　${esc(r.name)}<small>${esc(r.desc)}</small></button>`).join("") + `<button data-r="lib">${esc(NAMES.library)}<small>本を見開きで読む</small></button><button data-r="x">閉じる</button>`;
   el.hidden = false; el.querySelector("button").focus();

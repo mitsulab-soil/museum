@@ -96,7 +96,7 @@ export function createExhibit(o) {
     // 絵の上の真鍮の灯りと、下の小さな札（企画展のしるし）
     const bar = new THREE.Mesh(new THREE.BoxGeometry(Math.min(.9, w * .5), .05, .07), brassMat); bar.position.set(0, h / 2 + fr + .16, .2); g.add(bar);
     const label = o.labelCard(a, r, Math.max(.7, Math.min(1.25, w))); label.position.set(0, -h / 2 - fr - .17, .12); g.add(label);
-    const it = { a, r, f, v, g, w, h, full, empty, frame, parts: [], state: "rest", t: 0, next: 8 + Math.random() * 25, mode: "show", wait: 0 };
+    const it = { a, r, f, v, g, w, h, full, empty, frame, parts: [], state: "rest", t: 0, next: 4 + Math.random() * 14, mode: "show", wait: 0 };
     full.userData = frame.userData = { anim: it }; clickables.push(full, frame);
     addParts(it, a, w, h);
     return it;
@@ -284,7 +284,7 @@ export function createExhibit(o) {
           continue;
         }
         const d = camera.position.distanceTo(it.g.position);
-        if (d < 15) { it.next -= dt; if (it.next <= 0 && playing < 2) { start(it, "show"); playing++; } }
+        if (d < 26) { it.next -= dt; if (it.next <= 0 && playing < 2) { start(it, "show"); playing++; } }
         continue;
       }
       it.t += dt;

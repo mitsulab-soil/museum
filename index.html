@@ -5,7 +5,11 @@
 <meta name="tdm-reservation" content="1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>森羅博物館</title>
-<meta name="description" content="森羅博物館（Shinra Museum）。森羅百景の八つの連作を、碧と歩いて巡る美術館と、一冊ずつ手にとって読む図書館。">
+<meta name="description" content="森羅博物館（Shinra Museum）。森羅百景の八つの連作を、碧と歩いて巡る博物館。書架の間では、一冊ずつ手にとって読める。">
+<meta property="og:title" content="森羅博物館">
+<meta property="og:description" content="森羅百景の八つの連作を、碧と歩いて巡る博物館。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mitsulab-soil.github.io/museum/">
 <style>
 :root{--bg:#15110c;--ink:#efe6d2;--dim:#b9ab92;--line:#4a3d2c;--card:#211a12;--card2:#2b2217;--gold:#c9a45c;--gold2:#e7cf93;--aoi:#4fb3a8;--aoi2:#18322f;--paper:#f6efdf;--pink:#2a2018;
   --shadow:0 10px 36px rgba(0,0,0,.45);--mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","KRsub",serif;--goth:"Hiragino Sans","Noto Sans JP","Yu Gothic","KRsub",system-ui,sans-serif}
@@ -35,6 +39,7 @@ body.reading #top{display:none}   /* 本をひらいたら上の道具（⌂・�
 #mini{width:104px;height:104px;border-radius:14px;border:1px solid var(--line);background:color-mix(in srgb,var(--card) 84%,transparent);box-shadow:var(--shadow);display:block;padding:0}
 #mini canvas{width:100%;height:100%;display:block}
 body.inlib #listBtn{display:none}
+@media (max-width:440px){body.inlib #where{display:none}}   /* スマホの書架の間：本の帯と場所の札が重なっていた（2026-10-08 検証） */
 /* 部屋に入ったときの札と、敷居のうつろい */
 #veil{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;background:#000}
 #veil.go{animation:veil 1.5s ease-out}
@@ -82,7 +87,7 @@ body.inlib #listBtn{display:none}
   #acts{margin-right:30px}
 }
 body.reading-aloud #guide{display:flex!important;z-index:31}
-@media (max-width:760px){body.reading-aloud #guide{top:calc(max(8px,env(safe-area-inset-top)) + 60px);bottom:auto}}
+@media (max-width:760px){body.reading-aloud #guide{top:auto;bottom:calc(max(8px,env(safe-area-inset-bottom)) + 138px);pointer-events:none}body.reading-aloud #guide button{pointer-events:auto}}   /* 本の見出しを隠さないよう、頁の下（めくるボタンの上）へ（2026-10-08 検証） */
 /* 札（作品の説明） */
 #panel{position:fixed;z-index:8;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 @media (min-width:821px){#panel{top:130px;right:12px;bottom:12px;width:420px;border-radius:18px}}
@@ -225,12 +230,13 @@ body.oto #hint,body.oto #zones{display:none!important}
 .pin .big.sm{font-size:clamp(26px,4vw,40px);letter-spacing:.06em;border:0}
 .pin .mk{font-size:72px;line-height:1}
 .pin .sub{font-size:15px;color:#6b5a3e;margin-top:0}
-.stack{position:absolute;inset:0 0 30px 0;overflow:auto;-webkit-overflow-scrolling:touch}
+.stack{position:absolute;inset:0 0 42px 0;overflow:auto;-webkit-overflow-scrolling:touch}
 .stack>.pin,.stack>.cover,.stack>.endp{position:relative;inset:auto;min-height:0}
 .stack>.cover{min-height:56vh}
 .stack>.pin.fig{padding-bottom:6px}
 .stack>.pin.fig figure img{max-height:44vh}
 .stack>.endp{display:none}
+.pg .stack .folio{position:static;margin:6px 0 14px}   /* スマホの一枚の頁：ノンブルを本文の下に流す（本文に重なっていた・2026-10-08 検証） */
 .spread{position:relative;display:flex;height:100%;max-height:860px;width:100%;filter:drop-shadow(0 18px 30px rgba(0,0,0,.55))}
 .pg{position:relative;flex:1;min-width:0;background:linear-gradient(90deg,#efe5cf,#f8f1e1 12%,#f8f1e1 88%,#eadfc6);color:#2b2116;overflow:hidden}
 .pg.l{border-radius:10px 2px 2px 10px;background:linear-gradient(270deg,#e2d5b8 0,#f6eedc 7%,#f8f1e1 90%,#eee3cb)}
@@ -238,7 +244,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 .single .pg.l{display:none}
 .single .pg.r{border-radius:6px 10px 10px 6px}
 .pin{position:absolute;inset:0 0 36px 0;overflow:auto;padding:clamp(18px,4vw,40px) clamp(18px,4vw,44px) 46px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-.pg .folio{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:14px;color:#8a7754;font-family:var(--mincho)}
+.pg .folio{position:absolute;bottom:10px;z-index:2;left:0;right:0;text-align:center;font-size:14px;color:#8a7754;font-family:var(--mincho)}
 .leaf{position:absolute;top:0;bottom:0;width:50%;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.4,.1,.2,1);z-index:3}
 .single .leaf{width:100%;left:0!important}
 .leaf .pg{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
