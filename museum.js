@@ -551,8 +551,15 @@ for (const a of window.ANIM || []) {
   EX.attach(a, r, bay.g, sl.x, sl.y, .07 + .064, ww, hh, k.side, k.u);
 }
 CALLS.suzume3 = CALLS.suzume; CALLS.tsubame2 = CALLS.tsubame;
-// 広間に入って最初の一点は、2〜3 秒で抜け出る（2026-10-08 夜の検証「入口から作品の核が見えない」）
-{ const near = [...EX.items].sort((p, q) => p.g.position.distanceTo(new THREE.Vector3(0, 0, 3.6)) - q.g.position.distanceTo(new THREE.Vector3(0, 0, 3.6)))[0]; if (near) near.next = 2.5; }
+// 2026-10-09 本人「生き物は絵を見たときに出てきて、説明が終わるときには絵に帰る。それ以外の時は飛んでないで」
+//   碧がその絵の説明を始めたら抜け出し（bound）、説明が終わる（とめた・離れたを含む）と絵へ帰る
+function bindCreatures(list) {
+  if (RM) return () => {};
+  const its = list.filter(it => it && it.state === "rest");
+  for (const it of its) { it.bound = true; EX.start(it, "show"); }
+  return () => { for (const it of its) it.bound = false; };
+}
+const roomCreatures = (slug, kid, f) => EX.roomItems.filter(it => it.a.room === slug && it.a.kei === kid && (!f || fname(it.a.img || "") === fname(f)));
 // 館の 3D 模型・3D 地図・部屋の立体の札（holo.js・2026-10-09 本人）
 const HOLO = createHolo({ THREE, scene, camera, rooms, ENT, LIB_FACE, NF, faceTh, HA, R, HALF, DOOR, VEST, LIB, libWorld, NAMES, GOTH, MINCHO,
   onOpen: () => { $("holoBar").hidden = false; }, onClose: () => { $("holoBar").hidden = true; } });
@@ -575,7 +582,7 @@ function animTapped(it) {
   const { k, w } = animWork(it.a), L = (T.anim || {})[it.a.id] || {};
   const n = new THREE.Vector3(0, 0, 1).applyQuaternion(it.g.quaternion), look = it.g.position.clone().setY(0), stand = look.clone().addScaledVector(n, 2.9);
   const acts = [["ついて行く", () => followAnim(it), true], ["札をひらく", () => k && openPanel(k, w)], ["自由に歩く", () => freeTalk(T.idle.free)]];
-  goTo(stand, look, () => { if (!RM) EX.start(it, "show"); talk([L.work, L.come].filter(Boolean), acts); });
+  goTo(stand, look, () => { const rel = bindCreatures([it]); talk([L.work, L.come].filter(Boolean), acts).then(rel); });
 }
 function followAnim(it) {   // 生きものが扉まで行き、見る人がついて行く。着いたら絵へもどる
   const L = (T.anim || {})[it.a.id] || {}, i = it.r.i;
@@ -821,7 +828,8 @@ function explainBay(b) {
   A.look = b.center.clone();
   curActs = () => [["札をひらく", () => openPanel(b.k, b.slots[0]?.w), true], ["⏭", skipLine, false, "このことばをとばす"], ["部屋をえらぶ", openMap]];
   setActs(curActs()); $("guide").hidden = false; if ($("guide").classList.contains("folded")) fold(false);
-  sayQ([...K.lines, K.side], { before: (t, n) => { A.point = n === 1 ? 1 : 0; A.talkT = 0; } }).then(ok => { if (ok) { A.point = 0; curActs = freeActs; setActs(freeActs()); } });
+  const rel = bindCreatures(roomCreatures(b.r.slug, b.k.id));
+  sayQ([...K.lines, K.side], { before: (t, n) => { A.point = n === 1 ? 1 : 0; A.talkT = 0; } }).then(ok => { rel(); if (ok) { A.point = 0; curActs = freeActs; setActs(freeActs()); } });
 }
 // 円堂の光は、見ている人の時刻で変わる（朝は白く、昼は明るく、夕方は金色、夜は月の青）。2026-10-07「現実の美術館にない体験」の一つ
 const HOUR_LIGHT = (() => {
@@ -1192,7 +1200,8 @@ function approach(bay, sl, then) {
     if (then) { openPanel(bay.k, sl?.w); then(); return; }
     const line = T.work[workKey(bay, sl.w)];
     const acts = [["札をひらく", () => openPanel(bay.k, sl.w), true], ...(tour.susp ? [["案内の続きへ", resumeTour]] : []), ["自由に歩く", () => { A.goal = null; A.look = null; A.point = 0; freeTalk(T.idle.free); }]];
-    talk(line ? [line, T.idle.twice] : [T.idle.twice], acts);
+    const rel = bindCreatures(roomCreatures(bay.r.slug, bay.k.id, sl.w.f));
+    talk(line ? [line, T.idle.twice] : [T.idle.twice], acts).then(rel);
   });
 }
 
@@ -1447,7 +1456,8 @@ async function runTour(i, j0 = -1) {
     tour.j = j; setActs(tourActs());
     if (!await walkToKei(j, tk)) return;
     const K = TR.kei[j]; talkAt = { i, j };
-    const ok = await sayQ([...K.lines, K.side], { before: (t, n) => { A.point = n === 1 ? 1 : 0; A.talkT = 0; } });
+    const relC = bindCreatures(roomCreatures(r.slug, r.kei[j].id));
+    const ok = await sayQ([...K.lines, K.side], { before: (t, n) => { A.point = n === 1 ? 1 : 0; A.talkT = 0; } }); relC();
     if (!ok || tk !== tour.tok) return;
     A.point = 0;
     const tok = SP.tok; await sleep(1500); if (!await waitRun(tok) || tk !== tour.tok) return;
@@ -1646,7 +1656,7 @@ function credits() {
   return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>学校の授業で、教室の画面に映して使ってかまいません（作品の権利の表示は、作品の札のとおり）。めやすは、広間だけなら 2 分、一部屋なら 10 分ほど。</p><p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
   図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。
   一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。<b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></p>
-  <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点と、部屋の中の絵の ${EX.roomItems.length} 点（近づくと抜け出てきます）は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
+  <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点と、部屋の中の絵の ${EX.roomItems.length} 点（碧がその絵の話をしているあいだ、抜け出てきます）は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
   <h3>生きものの鳴き声（企画展・さわったとき）</h3><ul>${[...new Set(Object.values(CALLS))].map(c => `<li>${esc(c.label)}：${esc(c.who)}・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・音量）</li>`).join("")}</ul>
   <h3>部屋の音と音楽</h3><ul>${ambHTML}</ul>
   <p>景の音（${snd.size} 本）は mitsulab が録ったものではなく、Wikimedia Commons で公開されている他の人の野外録音です。録音者・録音地・権利は景の札に出します。</p>
@@ -1820,8 +1830,8 @@ function otoGo(n, quick) {
   const arrive = () => {
     if (tk !== oto.tok) return;
     if (st.t === "book") { if (reader.isOpen) reader.close(); reader.open(st.bi); return; }   // 本は、ひらくと碧が見開きを読む
-    if (st.t === "exh" && !RM) EX.start(st.it, "show");
-    talk(otoLines(st).filter(Boolean), otoActs()).then(ok => { if (ok && tk === oto.tok && st.t === "kei") otoKeiSound(st); });
+    const rel = st.t === "exh" ? bindCreatures([st.it]) : st.t === "kei" ? bindCreatures(roomCreatures(rooms[st.i].slug, rooms[st.i].kei[st.j].id)) : () => {};
+    talk(otoLines(st).filter(Boolean), otoActs()).then(ok => { rel(); if (ok && tk === oto.tok && st.t === "kei") otoKeiSound(st); });
   };
   const far = Math.hypot(p.x - me.pos.x, p.z - me.pos.z) > 12;
   if (!quick && !far) talk([T.move[oto.at % T.move.length]], otoActs());   // 歩くあいだ（足音）は「こちらです」

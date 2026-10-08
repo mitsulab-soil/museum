@@ -10,6 +10,9 @@
    2026-10-07 本人「絵から飛び出るキャラクターは平面でなく立体に（厚みと陰のある 3D の生き物。元の絵の色と筆致を生かした質感で）」→ 切り抜きの形（アルファ）から体のふくらみを作り、
    表と裏に厚みを持たせ、ふくらみの向きで陰をつける（元の絵の色と筆致はそのまま）。「タッチすると反応する」→ 種に合った反応（飛び上がる・跳ねる・身をひるがえす）。 */
 
+import * as THREE_ from "three";
+import { createCreatures } from "./creatures3d.js";
+const CR = createCreatures(THREE_);
 const VS = `uniform float uA, uB, uMode, uWave, uWaveK, uWaveP, uShim, uT, uThick; uniform vec2 uP0, uDir, uTexel; uniform float uLen, uSide; uniform sampler2D uMap;
 varying vec2 vUv; varying float vShade; varying vec3 vN;
 float H(vec2 u){ return textureLod(uMap, u, 3.5).a; }
@@ -144,10 +147,7 @@ export function createExhibit(o) {
   const PERCH = new Set(["sparrow", "swallow", "warbler", "butterfly", "dragonfly", "smallbird"]);
   let watch = null;   // 碧が目で追うもの：{ pos, perch }
   function makePath(it, pt, k, mode) {
-    if (mode === "show" && o.getAoi) {
-      const A = o.getAoi(), { p } = restPose(it, pt);
-      if (A && A.pos.distanceTo(V(p.x, 0, p.z)) < 16) return { kind: "aoi" };
-    }
+    if (mode === "show") return { kind: "aoi" };   // 2026-10-09 本人「絵を見たときに出てきて、説明が終わるときには絵に帰る」：説明のあいだだけ、碧と関わる
     const { p, n } = restPose(it, pt), st = pt.st, pts = [p.clone(), p.clone().addScaledVector(n, .7)];
     const door = mode === "guide" ? WF(it.r, .9, 0) : null;
     if (st.ground) {
@@ -205,7 +205,7 @@ export function createExhibit(o) {
     });
     return true;
   }
-  const tmpQ = new THREE.Quaternion(), M4 = new THREE.Matrix4(), UP = V(0, 1, 0);
+  const tmpQ = new THREE.Quaternion(), M4 = new THREE.Matrix4(), UP = V(0, 1, 0), tmpT = new THREE.Vector3();
   function orient(pt, pos, F, upright) {
     const cam = camera.position.clone().sub(pos);
     let X, Y, N;
@@ -251,12 +251,16 @@ export function createExhibit(o) {
     return s >= 1;
   }
   function aoiTick(it, pt, dt, T, t) {
-    const st = pt.st, S = pt.ap, A = o.getAoi && o.getAoi(), { p, n } = restPose(it, pt), u = pt.mat.uniforms;
+    const st = pt.st, S = pt.ap, { p, n } = restPose(it, pt), u = pt.mat.uniforms;
+    let A = o.getAoi && o.getAoi();
+    if (A && A.pos.distanceTo(V(p.x, 0, p.z)) > 12) A = null;
+    if (!A) { const c = p.clone().addScaledVector(n, 1.8); A = { pos: V(c.x, 0, c.z), hand: c.clone().setY(1.25), head: c.clone().setY(1.5), none: true }; }   // 碧がいないとき：絵の前の宙で
     const near = Math.max(1, Math.min(7, (NEAR[it.a.style] || .3) / Math.max(pt.bw, pt.bh)));
     const ground = !!st.ground, perch = PERCH.has(it.a.style);
     const spd = ground ? (st.ground === "hop" ? 1.5 : .7) : st.swim ? .9 : it.a.style === "butterfly" ? 1.1 : it.a.style === "goose" ? 1.6 : 2.0;
     S.pt += dt; let pos = S.pos, F = V(n.x, 0, n.z);
-    if (!A && S.ph < 4) { S.ph = 4; S.pt = 0; S.from = pos.clone(); }
+    // 説明が終わったら（bound が外れたら）、どの段からでも絵へ帰る
+    if (!it.bound && S.ph >= 1 && S.ph !== 4) { S.ph = 4; S.pt = 0; S.from = pos.clone(); S.curve = null; }
     const head = A ? A.head : null, hand = A ? A.hand : null, base = A ? A.pos : null;
     const flyH = st.swim ? 1.25 : it.a.style === "goose" ? 2.6 : 1.95;
     const orbitR = ground ? 1.05 : st.swim ? 1.0 : it.a.style === "goose" ? 1.8 : .85;
@@ -273,7 +277,7 @@ export function createExhibit(o) {
       const w = spd / orbitR * (st.swim ? .8 : 1); S.ang += S.dir * w * dt; const q = orbitPt(S.ang); F = q.clone().sub(pos); pos.lerp(q, Math.min(1, dt * 6));
       if (ground) pos.y = pt.bh * pt.sc / 2 + (st.ground === "hop" ? Math.abs(Math.sin(S.pt * 4.2)) * .3 : 0);
       const loops = ground ? 1 : 1.4;
-      if (S.pt * w > loops * Math.PI * 2) { S.ph = perch && hand ? 3 : 5; S.pt = 0; }
+      if (S.pt * w > loops * Math.PI * 2) { S.ph = perch && hand && !A.none ? 3 : 5; S.pt = 0; }
     } else if (S.ph === 3) {   // 差し出した手へ
       pt.sc += (near * .72 - pt.sc) * Math.min(1, dt * 3);   // 手にとまるときは、少し小さく（手の大きさに合わせて）
       const to = hand.clone().add(V(0, .05 + pt.bh * pt.sc * .35, 0)); const L = step(to, 1.4);
@@ -281,20 +285,38 @@ export function createExhibit(o) {
     } else if (S.ph === 31) {   // 手にとまる（翼をたたむ）
       pos.copy(hand).add(V(0, .05 + pt.bh * pt.sc * .35, 0)); F = V(head.x - pos.x, 0, head.z - pos.z).negate();
       if (st.flapHz) u.uA.value += (-.15 - u.uA.value) * Math.min(1, dt * 8);
-      if (S.pt > 3.4) { S.ph = 4; S.pt = 0; S.from = pos.clone(); }
+      if (S.pt > 6) { S.ph = 2; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); }   // 説明が続くあいだは、手にとまる → また回る
     } else if (S.ph === 5) {   // 大きな鳥・魚・地面のもの：碧のそばで少し止まる
       if (ground) pos.y = pt.bh * pt.sc / 2; F = V(base.x - pos.x, 0, base.z - pos.z);
       if (st.flapHz && it.a.style !== "goose") u.uA.value += (-.15 - u.uA.value) * Math.min(1, dt * 8);
-      if (S.pt > (ground ? 2.6 : 1.2)) { S.ph = 4; S.pt = 0; S.from = pos.clone(); }
+      if (S.pt > (ground ? 4 : 3)) { S.ph = 2; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); }
     } else if (S.ph === 4) {   // 絵へもどる
       if (!S.curve) S.curve = new THREE.CatmullRomCurve3([S.from, S.from.clone().lerp(p, .5).setY(Math.max(p.y, S.from.y) + (ground ? .2 : .5)), p.clone().addScaledVector(n, .5), p.clone()], false, "centripetal", .5);
       const D = Math.max(1.6, S.from.distanceTo(p) / (spd * 1.2)), k = Math.min(1, S.pt / D), s = smooth(k);
       pos.copy(S.curve.getPointAt(s)); F = S.curve.getTangentAt(Math.min(.999, Math.max(.001, s))); pt.sc = 1 + (near - 1) * smooth(1 - Math.max(0, (k - .55) / .45));
       pt.mat.uniforms.uOp.value = 1 - smooth(Math.max(0, (k - .92) / .08));
-      if (k >= 1) { pt.done = true; restAt(it, pt); S.curve = null; return true; }
+      if (k >= 1) { pt.done = true; restAt(it, pt); S.curve = null; pt.m3?.setOpacity(0); return true; }
     }
     if (S.ph !== 4) pt.mat.uniforms.uOp.value = Math.min(1, t / .5);
     orient(pt, pos, F, !!(ground || st.wander || st.swim || st.dart));
+    // 立体の生きもの（creatures3d.js）：平らな写しは絵から出る一瞬と、絵へもどる一瞬だけ。外にいるあいだは立体（2026-10-09 本人「3D をしっかり作り込んで」）
+    if (!pt.m3) { const img = pt.mat.uniforms.uMap.value.image; if (img && img.width) { pt.m3 = CR.make(it.a.style, img); world.add(pt.m3.G); pt.m3.G.traverse(m => { if (m.isMesh) { m.userData = { animPart: it }; clickables.push(m); } }); } }
+    if (pt.m3) {
+      let k3 = 1;
+      if (S.ph === 0) k3 = smooth(Math.min(1, S.pt / .8));
+      else if (S.ph === 4) { const D = Math.max(1.6, (S.from ? S.from.distanceTo(p) : 1) / (spd * 1.2)); k3 = 1 - smooth(Math.max(0, Math.min(1, (S.pt / D - .68) / .26))); }
+      pt.mat.uniforms.uOp.value *= (1 - k3); pt.m3.setOpacity(k3);
+      const G = pt.m3.G, L3 = pt.sc * Math.max(pt.bw, pt.bh) * (st.ground ? .95 : st.swim ? .95 : .8);
+      G.scale.setScalar(L3); G.position.copy(pos);
+      let F3 = F.clone(); if (ground || S.ph === 31 || S.ph === 5) F3.y = 0;
+      if (S.ph === 31) { const c = camera.position.clone().sub(pos); c.y = 0; F3 = V(-c.z, 0, c.x); }   // 手にとまったら、見る人に横顔を見せる
+      if (F3.lengthSq() < 1e-6) F3.set(0, 0, 1); F3.normalize();
+      if (ground) G.position.y = pos.y - pt.bh * pt.sc / 2;   // 足もとを床に
+      tmpT.copy(G.position).add(F3); G.lookAt(tmpT);
+      const fold = S.ph === 31 || (S.ph === 5 && it.a.style !== "goose") ? 1 : 0;
+      pt.m3.f = (pt.m3.f ?? 0) + (fold - (pt.m3.f ?? 0)) * Math.min(1, dt * 4);
+      pt.m3.update({ flap: u.uA.value, fold: pt.m3.f, t: T, swim: u.uWaveP.value || T * 8, amp: .06 + (it.react > 0 ? .06 : 0), hop: st.ground === "hop" && S.ph >= 1 && S.ph <= 2 ? Math.abs(Math.sin(S.pt * 4.2)) : 0 });
+    }
     if (S.ph >= 1 && S.ph !== 4) watch = { pos: pos.clone(), perch: S.ph === 3 || S.ph === 31, t: performance.now() };
     return false;
   }
@@ -337,7 +359,8 @@ export function createExhibit(o) {
     for (const it of [...items, ...roomItems]) {
       if (it.state === "rest") {
         if (!active || getRM()) continue;
-        if (it.inRoom) {   // 部屋の絵：近づく（6.5 m）と、少しして出てくる。離れると数えなおす
+        continue;   // 2026-10-09 本人「それ以外の時は飛んでないでください」：ひとりでには出ない（碧が説明を始めたときだけ・bind）
+        if (it.inRoom) {   // （旧）部屋の絵：近づく（6.5 m）と、少しして出てくる
           if (!it.g.parent?.visible) continue;
           const d = camera.position.distanceTo(it.g.getWorldPosition(WP));
           if (d < 6.5) { it.next -= dt; if (it.next <= 0 && playing < 2) { start(it, "show"); playing++; } } else if (d > 10) it.next = Math.max(it.next, 1.5 + Math.random() * 2);
@@ -383,6 +406,6 @@ export function createExhibit(o) {
   function guide(it) { if (it.state !== "rest") return false; it.arrived = false; return start(it, "guide"); }
   function release(it) { it.release = true; it.arrived = true; }
   function react(it) { if (it.state === "rest") return false; it.react = .9; return true; }
-  function abort(it) { for (const pt of it.parts) { pt.m.visible = false; pt.done = true; pt.hold = false; } it.state = "rest"; it.release = false; }
+  function abort(it) { for (const pt of it.parts) { pt.m.visible = false; pt.m3?.setOpacity(0); pt.done = true; pt.hold = false; } it.state = "rest"; it.release = false; }
   return { items, roomItems, attach, watch: () => (watch && performance.now() - watch.t < 300 ? watch : null), tick, start, guide, release, abort, react, find: id => items.find(i => i.a.id === id) };
 }
