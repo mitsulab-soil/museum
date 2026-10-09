@@ -528,6 +528,83 @@ function playCall(id, pos) {
   AUD.buffer(c.f).then(b => { const s = AUD.ctx.createBufferSource(), g = AUD.ctx.createGain(), pn = AUD.ctx.createPanner(); pn.panningModel = "HRTF"; pn.distanceModel = "inverse"; pn.refDistance = 2;
     if (pos) { pn.positionX.value = pos.x; pn.positionY.value = pos.y; pn.positionZ.value = pos.z; } g.gain.value = .9; s.buffer = b; s.connect(g); g.connect(pn); pn.connect(AUD.master); s.start(); }).catch(() => {});
 }
+// 生きものの鳴き声と動きの音（2026-10-09 本人「動物について、鳴き声や動きの音をつけてください。静かに動きすぎです」）
+//   商用可の録音だけ（雁の声＝CC BY-SA 4.0、動きの音＝Freesound の CC0）。原本＝04_データ/02_CC素材/04_音声/museum_calls/、切り出し＝_dev/creature_snd.py、台帳 M-0804〜0812。
+//   蝶・蜻蛉・鯉・野うさぎは鳴かない（声を出さない生きもの）ので、動きの音だけ。音は小さく、碧の声のあいだはさらに小さく、離れると減る
+CALLS.gan = { f: "snd/call_gan.m4a", label: "マガンの飛びながらの声（オランダで録音）", who: "Joost van Bruggen（xeno-canto XC432936）", lic: "CC BY-SA 4.0", licurl: "https://creativecommons.org/licenses/by-sa/4.0/", page: "https://commons.wikimedia.org/wiki/File:Anser_albifrons_-_Greater_White-fronted_Goose_XC432936.mp3" };
+const SFX = {
+  flap_s: { f: "snd/sfx_flap_s.m4a", label: "小鳥が飛び立つ羽音（雀・燕に）", who: "XfiXy8", page: "https://freesound.org/people/XfiXy8/sounds/467294/" },
+  flap_s2: { f: "snd/sfx_flap_s2.m4a", label: "鳥の羽ばたき（雀・鶯に）", who: "Clusman", page: "https://freesound.org/people/Clusman/sounds/543118/" },
+  flap_l: { f: "snd/sfx_flap_l.m4a", label: "ハトの羽ばたき（少し低くして、雁・鷺に）", who: "Kinoton", page: "https://freesound.org/people/Kinoton/sounds/689998/" },
+  flutter: { f: "snd/sfx_flutter.m4a", label: "羽ばたきの効果音（蝶に、ごく小さく）", who: "TRP", page: "https://freesound.org/people/TRP/sounds/616859/" },
+  dart: { f: "snd/sfx_dfly.m4a", label: "トンボが飛ぶ音", who: "RatBird", page: "https://freesound.org/people/RatBird/sounds/570203/" },
+  splash: { f: "snd/sfx_splash.m4a", label: "池で魚がはねる音（鯉が絵から出る・帰るとき）", who: "kylecutsfilms", page: "https://freesound.org/people/kylecutsfilms/sounds/443380/" },
+  swirl: { f: "snd/sfx_swirl.m4a", label: "水をかく音（鯉のひれに）", who: "nmscher", page: "https://freesound.org/people/nmscher/sounds/86225/" },
+  thump: { f: "snd/sfx_thump.m4a", label: "小さな着地の音（野うさぎの足音に）", who: "Nightflame", page: "https://freesound.org/people/Nightflame/sounds/397601/" },
+};
+for (const x of Object.values(SFX)) { x.lic = "CC0"; x.licurl = "https://creativecommons.org/publicdomain/zero/1.0/"; }
+const CR_SND = {   // 種ごと：鳴き声・動きの音・音量（g＝動きの音、cg＝鳴き声。鶯の録音は大きいので小さく）
+  sparrow: { call: "suzume", move: ["flap_s2", "flap_s"], g: .42, cg: .5 }, swallow: { call: "tsubame", move: ["flap_s"], g: .42, cg: .5 }, warbler: { call: "uguisu", move: ["flap_s2"], g: .4, cg: .16 },
+  goose: { call: "gan", move: ["flap_l"], g: .5, cg: .42 }, heron: { call: "sagi", move: ["flap_l"], g: .45, cg: .45 },
+  butterfly: { move: ["flutter"], g: .07 }, dragonfly: { move: ["dart"], g: .22 }, carp: { move: ["swirl"], out: "splash", g: .32 }, hare: { step: "thump", g: .26 },
+};
+const CR_PERCH = new Set(["sparrow", "swallow", "warbler", "butterfly", "dragonfly", "smallbird"]);
+function crPlay(f, pos, gain, rate = 1) {
+  if (!f || !AUD.ctx || AUD.muted) return;
+  AUD.buffer(f).then(b => { const c = AUD.ctx, s = c.createBufferSource(), g = c.createGain(), pn = c.createPanner(); pn.panningModel = "HRTF"; pn.distanceModel = "inverse"; pn.refDistance = 1.6; pn.rolloffFactor = 1.4; pn.maxDistance = 40;
+    if (pos) { pn.positionX.value = pos.x; pn.positionY.value = pos.y; pn.positionZ.value = pos.z; } s.buffer = b; s.playbackRate.value = rate; g.gain.value = gain; s.connect(g); g.connect(pn); pn.connect(AUD.master); s.start(); }).catch(() => {});
+}
+function crEvent(type, it, pos) {
+  if (type === "out") crShow(it);
+  const C = CR_SND[it.a.style]; if (!C) return;
+  const soft = SP.playing ? .65 : 1, v = () => .92 + Math.random() * .16;   // 碧が話しているあいだは、さらに小さく
+  if (type === "call") { const c = CALLS[it.a.id] || CALLS[C.call]; if (c) crPlay(c.f, pos, (C.cg ?? .4) * soft, .97 + Math.random() * .06); return; }
+  if (type === "step") { if (C.step) crPlay(SFX[C.step].f, pos, C.g * soft, .85 + Math.random() * .3); return; }
+  const mv = C.move || [], pickMv = () => SFX[mv[Math.floor(Math.random() * mv.length)]];
+  if (type === "out" || type === "back") { const x = SFX[C.out] || pickMv() || SFX[C.step]; if (x) crPlay(x.f, pos, C.g * soft * 1.1, v()); return; }
+  if (type === "land") { const x = pickMv(); if (x) crPlay(x.f, pos, C.g * soft * .55, 1.08); return; }
+  const x = pickMv(); if (x) crPlay(x.f, pos, C.g * soft, v());
+}
+// いま出ている生きものの小さな札（2026-10-09 本人「それとなく、今動いている生き物の解説を配置してください」）。
+//   和名・学名・ひとこと。ひとことは日本語版ウィキペディアの各項目で確かめた、図鑑の基本の範囲の一文だけ（⚙ の出典に記す）
+const CR_INFO = {
+  suzume: { n: "雀（スズメ）", sci: "Passer montanus", t: "人家の近くでくらす小鳥。地面では両足をそろえて跳ねて進む。" },
+  tsubame: { n: "燕（ツバメ）", sci: "Hirundo rustica", t: "春に南から渡ってくる夏鳥。人里の近くに、泥と枯れ草をこねて巣をつくる。" },
+  uguisu: { n: "鶯（ウグイス）", sci: "Horornis diphone", t: "笹の多い林や藪を好む。「ホーホケキョ」は雄のさえずり。" },
+  gan: { n: "雁（マガン）", sci: "Anser albifrons", t: "北の高緯度の地で繁殖し、日本には冬鳥として渡ってくる。" },
+  sagi: { n: "白鷺（シラサギ）", sci: "Ardeidae", t: "ほぼ全身が白いサギのなかまの総称。ダイサギ・コサギなど。" },
+  chou: { n: "蝶（チョウ）", sci: "Papilionoidea", t: "4 枚の翅は鱗粉や毛でおおわれる。口はストローのように細長い。" },
+  tombo: { n: "蜻蛉（トンボ）", sci: "Odonata", t: "幼虫はヤゴと呼ばれ、水の中で育つ。長い 2 対の翅で飛ぶ。" },
+  koi: { n: "鯉（コイ）", sci: "Cyprinus carpio", t: "口ひげが 2 対あり、においや味を感じる。水の底で餌をさがす。" },
+  ido: { n: "野うさぎ（ノウサギのなかま）", sci: "Lepus", t: "地面の上でくらし、長い後ろ足で跳ねて走る。" },
+};
+const crc = { it: null, key: null, x: -999, y: -999, on: false }, CR_OTO = new URLSearchParams(location.search).get("mode") === "oto";
+function crShow(it) {
+  const key = it.a.id.replace(/\d+$/, ""), I = CR_INFO[key]; if (!I) return;
+  crc.it = it;
+  if (crc.key !== key) { crc.key = key; $("crName").textContent = I.n; $("crSci").textContent = I.sci; $("crLine").textContent = I.t; }
+}
+const _cv = new THREE.Vector3();
+function crTick(dt) {
+  const el = $("crCard"), outs = EX.outs ? EX.outs() : [];
+  if (crc.it && !outs.includes(crc.it)) { crc.it = null; if (outs[0]) crShow(outs[0]); }
+  const show = !!crc.it && mode === "walk" && $("reader").hidden && !HOLO.open_;
+  if (show !== crc.on) { crc.on = show; el.classList.toggle("on", show); el.classList.toggle("srOnly", CR_OTO); if (show) el.removeAttribute("aria-hidden"); else el.setAttribute("aria-hidden", "true"); if (!show) crc.x = -999; }
+  if (!show || CR_OTO) return;   // 音で巡る館：画面には出さず、読み上げにだけ渡す
+  // 生きもののそば（右上）に。画面の外・後ろにいるときは字幕のすぐ上の左へ。上の帯と碧の字幕には重ねない
+  const w = el.offsetWidth, h = el.offsetHeight, W = innerWidth, H = innerHeight;
+  _cv.copy(crc.it.cpos); _cv.y += .18; _cv.project(camera);
+  const top = ($("top").hidden ? 10 : Math.max($("where").getBoundingClientRect().bottom, $("mini").getBoundingClientRect().bottom) + 8);
+  const g = $("guide"), gTop = g.hidden ? H - 10 : g.getBoundingClientRect().top - 8;
+  let x, y;
+  if (_cv.z < 1 && Math.abs(_cv.x) < 1.05 && Math.abs(_cv.y) < 1.05) {
+    const px = (_cv.x + 1) / 2 * W, py = (1 - _cv.y) / 2 * H;
+    x = px + 30 + w > W - 10 ? px - 30 - w : px + 30; y = py - h - 22;
+  } else { x = 10; y = gTop - h - 4; }   // 画面の外：字幕のすぐ上の左（床のあたり）。説明している絵には重ねない
+  x = clamp(x, 10, Math.max(10, W - w - 10)); y = clamp(y, top, Math.max(top, gTop - h));
+  if (crc.x < -900) { crc.x = x; crc.y = y; } else { const k = RM ? 1 : 1 - Math.exp(-dt * 4); crc.x += (x - crc.x) * k; crc.y += (y - crc.y) * k; }
+  el.style.transform = `translate3d(${crc.x.toFixed(1)}px,${crc.y.toFixed(1)}px,0)`;
+}
 function syncListener() { const L = AUD.ctx?.listener; if (!L || !L.positionX) return; L.positionX.value = camera.position.x; L.positionY.value = camera.position.y; L.positionZ.value = camera.position.z;
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); L.forwardX.value = f.x; L.forwardY.value = f.y; L.forwardZ.value = f.z; L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
 
@@ -543,7 +620,7 @@ function getAoi() {
   return { pos: new THREE.Vector3(A.pos.x, 0, A.pos.z), hand: palm || new THREE.Vector3(A.pos.x, 1.1, A.pos.z), head: hd ? hd.getWorldPosition(_hd).clone() : new THREE.Vector3(A.pos.x, 1.5, A.pos.z) };
 }
 const EX = createExhibit({ THREE, world, rooms, FACES, WF, R, OBST, darkWood, poolMat, clickables, giltMat, brassMat, camera, getRM: () => RM, getAoi,
-  labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm), onLanded: it => { if (guideIt === it) guideIt = null; } });
+  labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm), onEvent: crEvent, onLanded: it => { if (guideIt === it) guideIt = null; } });
 // 部屋の中の絵からも生きものが抜け出る（2026-10-08 本人）：data/anim.js の切り抜きのうち、その絵が部屋の景に掛かっているもの（CC0／PD だけ）
 for (const a of window.ANIM || []) {
   const r = rooms.find(x => x.slug === a.room), k = r?.kei.find(x => x.id === a.kei), bay = k?.bay; if (!bay) continue;
@@ -1249,6 +1326,8 @@ async function loadAoi() {
     const box = new THREE.Box3().setFromObject(v.scene), h = box.max.y - box.min.y, sc = h > .5 ? AOI_H / h : 1;
     v.scene.scale.setScalar(sc); v.scene.position.y = -box.min.y * sc;
     A.head = v.humanoid.getRawBoneNode("head");
+    // 表情を細かく（2026-10-09 本人「楽しそうに」）：VRoid の顔の形（目を細める・口角・眉）を直接少しずつ。表情の束（happy など）は目を閉じてしまうので使わない
+    A.face = []; v.scene.traverse(o => { const d = o.morphTargetDictionary; if (d && d.Fcl_EYE_Joy != null) A.face.push({ m: o, eye: d.Fcl_EYE_Joy, mth: d.Fcl_MTH_Fun, brw: d.Fcl_BRW_Fun }); });
     A.gaze = new THREE.Object3D(); scene.add(A.gaze); if (v.lookAt) v.lookAt.target = A.gaze;
     const blob = new THREE.Mesh(new THREE.CircleGeometry(.42, 32), blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = .006; aoi.add(blob);
     A.springs = (v.springBoneManager?.joints ? [...v.springBoneManager.joints] : []).map(j => ({ j, g: j.settings.gravityDir.clone(), p: j.settings.gravityPower }));
@@ -1332,7 +1411,25 @@ function aoiTick(dt) {
   const lookWork = A.look && A.talkT < 2.6;
   // 抜け出た生きものを目で追い、とまりそうなら左手を差し出す（2026-10-09 本人）
   const wt = EX?.watch?.(), watching = wt && !lookWork;
-  A.offer = (A.offer || 0) + ((wt && wt.perch ? 1 : 0) - (A.offer || 0)) * ease(dt, 3);
+  // 2026-10-09 本人「碧が動物との触れ合いをもっと楽しそうに。動きが少し硬い」：
+  //   手にとまれる生きものが回っているうちから手を差し出し、とまったら手をそっと引き寄せて顔を寄せる・小さく笑って首をかしげる。
+  //   頭と上体は、目より少し遅れて、なめらかに生きものを追う（ばねで追う）。帰るときは手を振る
+  const perchable = wt && CR_PERCH.has(wt.style) && !wt.ret;
+  A.offer = (A.offer || 0) + ((perchable && (wt.perch || wt.ph === 2) ? 1 : 0) - (A.offer || 0)) * ease(dt, 2.2);
+  A.land = (A.land || 0) + ((wt && wt.landed ? 1 : 0) - (A.land || 0)) * ease(dt, 2.4);
+  A.nearG = (A.nearG || 0) + ((wt && wt.near && (wt.style === "hare" || wt.style === "heron") ? 1 : 0) - (A.nearG || 0)) * ease(dt, 2);
+  A.joy = (A.joy || 0) + ((wt ? (wt.landed ? 1 : wt.ret ? .6 : .7) : 0) - (A.joy || 0)) * ease(dt, wt ? 2.2 : 1.1);
+  A.wave = (A.wave || 0) + ((wt && wt.ret ? 1 : 0) - (A.wave || 0)) * ease(dt, 3);
+  A.watchW = (A.watchW || 0) + ((watching ? 1 : 0) - (A.watchW || 0)) * ease(dt, 3);
+  if (wt && wt.landed && !A.wasLanded && !RM) { A.gig = 0; A.tlT = 0; A.tlS = Math.random() < .5 ? 1 : -1; A.tl = 14; }   // とまった：小さく笑って、首をかしげる
+  A.wasLanded = !!(wt && wt.landed);
+  if (A.gig != null) { A.gig += dt; if (A.gig > 1.4) A.gig = null; }
+  {   // 頭の向き（ばね）：生きものへの向きと高さ
+    let ty = 0, tp = 0;
+    if (watching) { const hy = groundY(A.pos.x, A.pos.z) + 1.45, dx = wt.pos.x - A.pos.x, dz = wt.pos.z - A.pos.z; ty = clamp(wrapA(Math.atan2(dx, dz) - A.yaw), -1.15, 1.15); tp = clamp(Math.atan2(hy - wt.pos.y, Math.max(.25, Math.hypot(dx, dz))), -.45, .75); }
+    const w = 4.2, n2 = Math.max(1, Math.ceil(dt / .02)), h2 = dt / n2;
+    for (let i = 0; i < n2; i++) { A.hyv = (A.hyv || 0) + (w * w * (ty - (A.hy || 0)) - 2 * w * A.hyv) * h2; A.hy = (A.hy || 0) + A.hyv * h2; A.hpv = (A.hpv || 0) + (w * w * (tp - (A.hp || 0)) - 2 * w * A.hpv) * h2; A.hp = (A.hp || 0) + A.hpv * h2; }
+  }
   if (A.gaze) { if (lookWork) A.gaze.position.set(A.look.x, 1.9 + groundY(A.look.x, A.look.z), A.look.z); else if (watching) A.gaze.position.copy(wt.pos); else A.gaze.position.copy(camera.position); }
   A.talkT += dt;
   if (A.springs && !RM) { const t = performance.now() / 1000; for (const s of A.springs) { s.j.settings.gravityDir.set(s.g.x + .22 * Math.sin(t * .63 + s.g.y), s.g.y, s.g.z + .14 * Math.sin(t * .41)).normalize(); s.j.settings.gravityPower = Math.max(s.p, .05); } }
@@ -1341,6 +1438,12 @@ function aoiTick(dt) {
   const lv = AUD.level(), talking = $("guide").classList.contains("talking");
   const want = SP.playing ? clamp(lv * 7, 0, 1) : talking && !SP.paused ? .18 + .18 * Math.abs(Math.sin(performance.now() / 90)) : 0;
   A.mouth += (want - A.mouth) * ease(dt, 18); vrm.expressionManager?.setValue("aa", A.mouth * .8);
+  if (A.face?.length) {   // ほほえみ（口角）・目を細める・眉をゆるめる。とまった瞬間は少し笑う
+    const g = !RM && A.gig != null ? Math.sin(Math.min(1, A.gig / 1.4) * Math.PI) : 0, j = RM ? A.joy * .6 : A.joy;
+    const eye = clamp(j * .3 + g * .35, 0, .62), mth = clamp((j * .55 + g * .35) * (1 - A.mouth * .55), 0, .85), brw = clamp(j * .55 + g * .2, 0, .8);
+    for (const f of A.face) { const I = f.m.morphTargetInfluences; if (!I) continue; I[f.eye] = eye; if (f.mth != null) I[f.mth] = mth; if (f.brw != null) I[f.brw] = brw; }
+    A.eyeJoy = eye;
+  }
   vrm.update(dt);
   // 2026-10-07 本人「碧が登場するときにワンピースが不自然に大きく揺れる」→ 現れてしばらくは、揺れものをいまの姿勢で止めておく（そのあいだに姿がゆっくり出る）
   if (A.calm > 0) { A.calm -= dt; const sbm = vrm.springBoneManager; sbm?.setInitState?.(); sbm?.reset?.(); }
@@ -1352,7 +1455,7 @@ function aoiOpacity(o) {
   for (const [mt, tr, dw] of aoiMats) { mt.transparent = o < 1 ? true : tr; mt.opacity = o; mt.depthWrite = o < 1 ? o > .6 : dw; mt.needsUpdate = true; }
 }
 // 体の動き：《Feel Hikawa》第2回の aoiPose を借り、ひじの向きだけ逆にした（_dev/check.mjs が毎回測る）
-const CUR = {};
+const CUR = {}, CURV = {};
 function aoiPose(dt, sp = 0, toCamLocal = 0, aim = 0) {
   const live = !RM, t = performance.now() / 1000, T_ = {};
   const S = (n, x = 0, y = 0, z = 0) => { T_[n] = [x, y, z]; };
@@ -1367,28 +1470,38 @@ function aoiPose(dt, sp = 0, toCamLocal = 0, aim = 0) {
     A.tl -= dt; if (A.tl <= 0 && k < .4 && Math.random() < dt * .25) { A.tl = 20 + Math.random() * 10; A.tlT = 0; A.tlS = Math.random() < .5 ? 1 : -1; }
     if (A.tlT != null) { A.tlT += dt; if (A.tlT > 2.2) A.tlT = null; } }
   const ws = (1 - k) * A.wsv, tilt = A.tlT != null ? Math.sin(Math.min(1, A.tlT / 2.2) * Math.PI) * .14 * A.tlS : 0;
-  const turn = clamp(toCamLocal, -.7, .7) * Math.max(greet, .45 * tk) * (1 - ptE);
+  const ww = live ? clamp(A.watchW || 0, 0, 1) : 0, hy = live ? (A.hy || 0) : 0, hp = live ? (A.hp || 0) : 0;   // 生きものを追う頭（ばね）
+  const ld = live ? clamp(A.land || 0, 0, 1) : 0, ldE = ld * ld * (3 - 2 * ld), ng = live ? clamp(A.nearG || 0, 0, 1) : 0;
+  const gg = live && A.gig != null ? Math.sin(Math.min(1, A.gig / 1.4) * Math.PI) : 0, giggle = gg * Math.sin(t * 2 * Math.PI * 4.5) * .018;   // 小さく笑う（肩が細かくゆれる）
+  const wv = live ? clamp(A.wave || 0, 0, 1) : 0, wvE = wv * wv * (3 - 2 * wv), wvO = Math.sin(t * 2 * Math.PI * 1.6);
+  const joyS = live ? (A.joy || 0) * Math.sin(t * 2 * Math.PI / 2.6) * .025 : 0;   // うれしいときの、重心の小さな揺れ
+  const turn = clamp(toCamLocal, -.7, .7) * Math.max(greet, .45 * tk) * (1 - ptE) * (1 - .8 * ww);
   aim = clamp(aim, -.6, .6);
   const hips = vrm.humanoid.getNormalizedBoneNode("hips");
-  if (hips && A.hip0) hips.position.set(A.hip0.x + (.012 * s1 * k + .018 * ws), A.hip0.y + .015 * Math.cos(2 * A.ph) * k - .004 * (1 - k) * br, A.hip0.z);
-  S("hips", 0, .07 * s1 * k, (.035 * s1 * k + .04 * ws));
-  S("spine", .04 * k - .006 * br, -.05 * s1 * k + turn * .15, -.02 * ws);
-  S("chest", -.012 * br, -.04 * s1 * k + turn * .15 + aim * .25 * ptE, -.015 * ws);
-  S("upperChest", -.01 * br, turn * .15 + aim * .2 * ptE, 0);
+  if (hips && A.hip0) hips.position.set(A.hip0.x + (.012 * s1 * k + .018 * ws + joyS * .4), A.hip0.y + .015 * Math.cos(2 * A.ph) * k - .004 * (1 - k) * br - .02 * ng, A.hip0.z);
+  S("hips", 0, .07 * s1 * k, (.035 * s1 * k + .04 * ws + joyS));
+  S("spine", .04 * k - .006 * br + .05 * ldE + .1 * ng, -.05 * s1 * k + turn * .15 + hy * .1 * ww, -.02 * ws - joyS * .6);
+  S("chest", -.012 * br + .04 * ldE + giggle, -.04 * s1 * k + turn * .15 + aim * .25 * ptE + hy * .1 * ww, -.015 * ws);
+  S("upperChest", -.01 * br + giggle, turn * .15 + aim * .2 * ptE + hy * .12 * ww, 0);
   const lt = -.36 * s1 * k, rt = .36 * s1 * k, lk = k * (.06 + .62 * Math.pow(Math.max(0, c1), 1.5)) + .05 * Math.max(0, ws), rk = k * (.06 + .62 * Math.pow(Math.max(0, -c1), 1.5)) + .05 * Math.max(0, -ws);
   S("leftUpperLeg", lt, 0, .015 + .03 * ws); S("rightUpperLeg", rt, 0, -.015 + .03 * ws);
   S("leftLowerLeg", lk); S("rightLowerLeg", rk);
   S("leftFoot", -(lt + lk) * .75); S("rightFoot", -(rt + rk) * .75);
   const gst = tk * (1 - ptE) * (1 - k * .6), gw = live ? Math.sin(t * 2 * Math.PI * .33) : 0;
   const of = live ? clamp(A.offer || 0, 0, 1) * (1 - k) : 0, ofE = of * of * (3 - 2 * of);   // 手を差し出す（右手の指さしの形を左に写し、ひじを少し曲げる）
-  const lUA = [.26 * s1 * k - .05 * (1 - k), 0, -1.3 + .04 * br * (1 - k)], lLA = [0, -(.28 + .14 * k + .12 * Math.max(0, -s1) * k), 0], oUA = [-.2, -.95, -.6], oLA = [0, -.45, 0];
+  const lUA = [.26 * s1 * k - .05 * (1 - k), 0, -1.3 + .04 * br * (1 - k)], lLA = [0, -(.28 + .14 * k + .12 * Math.max(0, -s1) * k), 0];
+  // とまったら、手をそっと引き寄せる（ひじを曲げて胸の前へ）。ゆっくり上下に揺らす
+  const cr = Math.sin(t * 2 * Math.PI / 3.4) * .03 * ldE;
+  const oUA = [-.2 + .05 * ldE, -.95 - .1 * ldE, -.6 + .38 * ldE + cr], oLA = [0, -.45 - .85 * ldE, 0];
   S("leftUpperArm", ...lUA.map((v, i) => v + (oUA[i] - v) * ofE));
   S("leftLowerArm", ...lLA.map((v, i) => v + (oLA[i] - v) * ofE));
-  S("leftHand", .05 - .25 * ofE, 0, .12 - .1 * ofE);
+  S("leftHand", .05 - .25 * ofE + .1 * ldE * ofE, 0, .12 - .1 * ofE);
   const rUA = [-.26 * s1 * k - .05 * (1 - k) - .16 * gst, 0, 1.3 - .04 * br * (1 - k) - .08 * gst], rLA = [0, .28 + .14 * k + .12 * Math.max(0, s1) * k + (.38 + .1 * gw) * gst, 0];
   const pUA = [-.15, 1.15 + aim * .6, .55], pLA = [0, .12, 0];
-  S("rightUpperArm", ...rUA.map((v, i) => v + (pUA[i] - v) * ptE)); S("rightLowerArm", ...rLA.map((v, i) => v + (pLA[i] - v) * ptE));
-  S("rightHand", .05 + .1 * gst * gw, 0, -.12 + .12 * ptE);
+  // 帰るときは手を振る（腕を少し上げて、前腕を左右に）
+  const wUA = [-.1, .45, -.5], wLA = [0, .6 + .28 * wvO, 0];
+  S("rightUpperArm", ...rUA.map((v, i) => v + (pUA[i] - v) * ptE).map((v, i) => v + (wUA[i] - v) * wvE)); S("rightLowerArm", ...rLA.map((v, i) => v + (pLA[i] - v) * ptE).map((v, i) => v + (wLA[i] - v) * wvE));
+  S("rightHand", .05 + .1 * gst * gw, 0, (-.12 + .12 * ptE) * (1 - wvE) + .15 * wvO * wvE);
   const cu = .34 + .06 * k + (live ? .04 * Math.sin(t * .4) : 0);
   for (const [f, m] of [["Index", .8], ["Middle", 1], ["Ring", 1.1], ["Little", 1.25]]) {
     const cl = cu * m, cr = f === "Index" ? cl * (1 - ptE) : cl + .35 * ptE;
@@ -1397,18 +1510,20 @@ function aoiPose(dt, sp = 0, toCamLocal = 0, aim = 0) {
   }
   S("leftThumbProximal", 0, .3, -.08); S("leftThumbDistal", 0, .15, -.2); S("rightThumbProximal", 0, -.3, .08); S("rightThumbDistal", 0, -.15, .2);
   const nod = live ? .12 * greet : 0;
-  S("neck", nod * .4 - .02 * br, turn * .2 + aim * .2 * ptE, tilt * .4);
-  S("head", nod * .6, turn * .35 + aim * .3 * ptE, tilt * .6);
-  const r = live ? 12 : 30;
+  S("neck", nod * .4 - .02 * br + hp * .3 * ww + .08 * ldE, turn * .2 + aim * .2 * ptE + hy * .25 * ww, tilt * .4);
+  S("head", nod * .6 + hp * .5 * ww + .06 * ldE, turn * .35 + aim * .3 * ptE + hy * .45 * ww, tilt * .6 + gg * .05);
+  // 関節はばね（臨界減衰）で動かす：急に動き出したり、急に止まったりしない（2026-10-09 本人「動きが少し硬い」。前は一こまの角度に上限をつけていて、直線的に動いて止まっていた）
+  const wS = live ? 8 + 6 * k : 30, nS = dt ? Math.max(1, Math.ceil(dt / .016)) : 0, hS = nS ? dt / nS : 0;
   for (const [nme, tg] of Object.entries(T_)) {
     const b = vrm.humanoid.getNormalizedBoneNode(nme); if (!b) continue;
-    const c = CUR[nme] ||= [...tg];
-    for (let i = 0; i < 3; i++) c[i] += dt ? clamp((tg[i] - c[i]) * ease(dt, r), -.14, .14) : tg[i] - c[i];
+    const c = CUR[nme] ||= [...tg], v = CURV[nme] ||= [0, 0, 0];
+    if (!dt) { for (let i = 0; i < 3; i++) { c[i] = tg[i]; v[i] = 0; } }
+    else for (let s2 = 0; s2 < nS; s2++) for (let i = 0; i < 3; i++) { v[i] += (wS * wS * (tg[i] - c[i]) - 2 * wS * v[i]) * hS; c[i] += v[i] * hS; }
     b.rotation.set(c[0], c[1], c[2]);
   }
   let bv = 0;
   if (live) { if (A.bt < 0) { A.blink -= dt; if (A.blink <= 0) A.bt = 0; } else { A.bt += dt; const u = A.bt; bv = u < .09 ? u / .09 : u < .12 ? 1 : u < .26 ? 1 - (u - .12) / .14 : 0; if (u >= .26) { A.bt = -1; A.blink = 3.5 + Math.random() * 4.5; } } }
-  vrm.expressionManager?.setValue("blink", bv * bv * (3 - 2 * bv));
+  vrm.expressionManager?.setValue("blink", bv * bv * (3 - 2 * bv) * (1 - (A.eyeJoy || 0)));
 }
 
 // ---------------------------------------------------------------- 碧と巡る（声で案内し、となりを歩く。景のあいだに雑談）
@@ -1659,7 +1774,10 @@ function credits() {
   図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。
   一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。<b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></p>
   <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点と、部屋の中の絵の ${EX.roomItems.length} 点（碧がその絵の話をしているあいだ、抜け出てきます）は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
-  <h3>生きものの鳴き声（企画展・さわったとき）</h3><ul>${[...new Set(Object.values(CALLS))].map(c => `<li>${esc(c.label)}：${esc(c.who)}・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・音量）</li>`).join("")}</ul>
+  <h3>生きものの鳴き声（絵から出ているとき・さわったとき）</h3><ul>${[...new Set(Object.values(CALLS))].map(c => `<li>${esc(c.label)}：${esc(c.who)}・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・音量）</li>`).join("")}</ul>
+  <h3>生きものの動きの音（羽ばたき・水音・足音）</h3><ul>${Object.values(SFX).map(c => `<li>${esc(c.label)}：${esc(c.who)}（Freesound）・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・モノラル・音量）</li>`).join("")}</ul>
+  <p>雀はフィンランド、雁はオランダで録られた声、燕は北米の亜種の声です（日本で録られた商用可の録音が見つからなかったため）。蝶・蜻蛉・鯉・野うさぎは声を出さないので、動きの音だけにしています。</p>
+  <h3>生きものの札のひとこと</h3><p>和名・学名と、図鑑の基本の範囲の一文。日本語版ウィキペディアの各項目（スズメ・ツバメ・ウグイス・マガン・白鷺・チョウ・トンボ・コイ・ノウサギ属）で、2026-10-09 に確かめました。</p>
   <h3>部屋の音と音楽</h3><ul>${ambHTML}</ul>
   <p>景の音（${snd.size} 本）は mitsulab が録ったものではなく、Wikimedia Commons で公開されている他の人の野外録音です。録音者・録音地・権利は景の札に出します。</p>
   <h3>碧の声</h3><p>VOICEVOX:冥鳴ひまり（前もって声にした一文ずつ。話したことばは字幕にそのまま出します）。碧の言葉は、森羅百景の解説・作品の表・録音の台帳からだけ組んだ事実と、新しい事実を入れない雑談でできています。話したことは保存しません（端末に覚えるのは、設定と、最後に立っていた場所だけ）。</p>
@@ -1763,7 +1881,7 @@ function tick() {
   LIBW.tick(dt, tt, -1);
   if (marker.material.opacity > 0) marker.material.opacity = Math.max(0, marker.material.opacity - dt * .9);
   exploreTick(dt); stepTick(dt); syncListener();
-  EX.tick(dt, tt, mode === "walk" && space === "museum");
+  EX.tick(dt, tt, mode === "walk" && space === "museum"); crTick(dt);
   HOLO.tick(dt, me.pos, me.yaw, region, local, aoi?.visible ? A.pos : null, tt);
   acc += dt; if (acc > .3) { acc = 0;
     const nsp = region(me.pos.x, me.pos.z).kind === "library" ? "library" : "museum";

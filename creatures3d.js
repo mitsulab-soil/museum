@@ -157,7 +157,8 @@ export function createCreatures(THREE) {
       }
       parts.tail.rotation.x = -.05 + Math.sin((st.t || 0) * 3) * .04 * f;
       for (const l of parts.legs) l.rotation.x = f > .5 ? 0 : 1.1 * (1 - f);   // 飛ぶあいだは脚を後ろへ
-      headG.rotation.y = Math.sin((st.t || 0) * 1.7) * .25 * f;     // とまっているときは首をかしげる
+      headG.rotation.y = (Math.sin((st.t || 0) * 1.7) * .22 + (st.look || 0) * .7) * f;     // とまっているときは首をかしげ、ときどき碧のほうを見る
+      headG.rotation.z = Math.sin((st.t || 0) * .9 + 1) * .18 * f;
     };
     return parts;
   }
@@ -280,10 +281,10 @@ export function createCreatures(THREE) {
     const M = mat(furTex, { r: .9 });
     const torso = new THREE.Mesh(body(16, 14, t => .14 * Math.pow(Math.sin(Math.PI * (.08 + t * .86)), .7), t => .16 * Math.pow(Math.sin(Math.PI * (.08 + t * .86)), .7), t => .03 * Math.sin(t * Math.PI), .62), M); torso.position.y = .25; G.add(torso);
     const headG = new THREE.Group(); headG.position.set(0, .38, .34); G.add(headG);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(.085, 14, 12), M); head.scale.set(.85, .9, 1.25); headG.add(head);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.085, 14, 12), M); head.scale.set(.85, .9, 1.25); headG.add(head); const ears = [];
     for (const s of [-1, 1]) {   // 長い耳（先が黒い）
       const ear = new THREE.Mesh(new THREE.SphereGeometry(.035, 10, 8), mat(brushTex(pal.mid, [pal.dark, pal.light], { n: 60, seed: 41, draw: (g, S) => { g.fillStyle = "#1a1612"; g.fillRect(0, 0, S, S * .15); } }), { r: .9 }));
-      ear.scale.set(.7, 4.2, 1); ear.position.set(s * .035, .17, -.04); ear.rotation.set(-.5, 0, s * .12); headG.add(ear);
+      ear.scale.set(.7, 4.2, 1); ear.position.set(s * .035, .17, -.04); ear.rotation.set(-.5, 0, s * .12); headG.add(ear); ears.push(ear);
       const eye = new THREE.Mesh(new THREE.SphereGeometry(.016, 8, 6), plain(0x1a120a, { r: .2 })); eye.position.set(s * .062, .02, .05); headG.add(eye);
     }
     const legs = [];
@@ -296,7 +297,9 @@ export function createCreatures(THREE) {
     }
     const tail = new THREE.Mesh(new THREE.SphereGeometry(.04, 8, 6), plain(pal.light.clone().lerp(new THREE.Color(1, 1, 1), .5))); tail.position.set(0, .33, -.32); G.add(tail);
     G.scale.setScalar(1 / .75);
-    parts.update = (st) => { const h = st.hop ?? 0; for (const l of legs) { l.hind.rotation.x = -h * .8; l.fore.rotation.x = h * .6; } headG.rotation.x = -.15 + Math.sin((st.t || 0) * 2) * .05 * (1 - h); };
+    parts.update = (st) => { const h = st.hop ?? 0, t = st.t || 0; for (const l of legs) { l.hind.rotation.x = -h * .8; l.fore.rotation.x = h * .6; } headG.rotation.x = -.15 + Math.sin(t * 2) * .05 * (1 - h) - Math.abs(st.look || 0) * .25; headG.rotation.y = (st.look || 0) * .6;
+      // 鼻をひくつかせ、耳をときどき動かす（寄り添っているとき）
+      head.position.y = Math.sin(t * 17) * .0025 * (1 - h); ears.forEach((e, i) => { e.rotation.x = -.5 + Math.max(0, Math.sin(t * .7 + i * 1.3)) ** 8 * .35; }); };
     return parts;
   }
 

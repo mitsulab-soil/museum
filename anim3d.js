@@ -252,57 +252,94 @@ export function createExhibit(o) {
   }
   // 手のひらから体の中心までの高さ：立体の生きものは足の先（footY）を手のひらに合わせる（2026-10-09 HP の担当「手より 20 cm 上に浮いて見える」）
   const lift = (pt, st) => pt.m3 && pt.m3.footY != null ? -pt.m3.footY * pt.sc * Math.max(pt.bw, pt.bh) * (st.ground ? .95 : st.swim ? .95 : .8) : .05 + pt.bh * pt.sc * .35;
+  // 2026-10-09 本人「碧が動物との触れ合いをもっと楽しそうに。動きが少し硬い。鳴き声や動きの音を。静かに動きすぎ」
+  //   → 速さを少しずつ上げ下げし（急に止まらない）、碧へは弧を描いて近づく。手の上では小さく跳ねる・向きを変える、地面のものは足もとに寄り添う。
+  //     音は onEvent で館へ知らせる（out＝抜け出る／flap・flutter・dart・swirl＝動きの音／step＝跳ねた足音／call＝鳴き声／land＝とまる／back＝絵へ帰る）
+  const emit = (type, it, pos) => { try { o.onEvent?.(type, it, pos); } catch (e) { console.warn(e); } };
+  const CALLER = new Set(["sparrow", "swallow", "warbler", "goose", "heron", "smallbird"]);
+  const rnd = (a, b) => a + Math.random() * (b - a);
   function aoiTick(it, pt, dt, T, t) {
-    const st = pt.st, S = pt.ap, { p, n } = restPose(it, pt), u = pt.mat.uniforms;
+    const st = pt.st, S = pt.ap, { p, n } = restPose(it, pt), u = pt.mat.uniforms, sty = it.a.style, lead = pt === it.parts[0];
     let A = o.getAoi && o.getAoi();
     if (A && A.pos.distanceTo(V(p.x, 0, p.z)) > 12) A = null;
     if (!A) { const c = p.clone().addScaledVector(n, 1.8); A = { pos: V(c.x, 0, c.z), hand: c.clone().setY(1.25), head: c.clone().setY(1.5), none: true }; }   // 碧がいないとき：絵の前の宙で
-    const near = Math.max(1, Math.min(7, (NEAR[it.a.style] || .3) / Math.max(pt.bw, pt.bh)));
-    const ground = !!st.ground, perch = PERCH.has(it.a.style);
-    const spd = ground ? (st.ground === "hop" ? 1.5 : .7) : st.swim ? .9 : it.a.style === "butterfly" ? 1.1 : it.a.style === "goose" ? 1.6 : 2.0;
+    const near = Math.max(1, Math.min(7, (NEAR[sty] || .3) / Math.max(pt.bw, pt.bh)));
+    const ground = !!st.ground, perch = PERCH.has(sty), hop = st.ground === "hop";
+    const spd = ground ? (hop ? 1.5 : .7) : st.swim ? .9 : sty === "butterfly" ? 1.1 : sty === "goose" ? 1.6 : 2.0;
+    if (!S.v) { S.v = V(0, 0, 0); S.side = Math.random() < .5 ? 1 : -1; S.seed = Math.random() * 6; S.nCall = rnd(1.4, 2.6); S.nMove = rnd(.3, .9); S.hopT = rnd(1.2, 2.2); S.hk = 0; S.hi = 0; }
     S.pt += dt; let pos = S.pos, F = V(n.x, 0, n.z);
     // 説明が終わったら（bound が外れたら）、どの段からでも絵へ帰る
-    if (!it.bound && S.ph >= 1 && S.ph !== 4) { S.ph = 4; S.pt = 0; S.from = pos.clone(); S.curve = null; }
+    if (!it.bound && S.ph >= 1 && S.ph !== 4) { S.ph = 4; S.pt = 0; S.from = pos.clone(); S.curve = null; if (lead) emit("back", it, pos); }
     const head = A ? A.head : null, hand = A ? A.hand : null, base = A ? A.pos : null;
-    const flyH = st.swim ? 1.25 : it.a.style === "goose" ? 2.6 : 1.95;
-    const orbitR = ground ? 1.05 : st.swim ? 1.0 : it.a.style === "goose" ? 1.8 : .85;
-    const orbitPt = ang => ground ? V(base.x + Math.cos(ang) * orbitR, 0, base.z + Math.sin(ang) * orbitR) : V(base.x + Math.cos(ang) * orbitR, flyH + Math.sin(ang * 2) * .12, base.z + Math.sin(ang) * orbitR);
-    const step = (to, v) => { const d = to.clone().sub(pos), L = d.length(); if (L > 1e-4) { F = d.clone(); pos.addScaledVector(d, Math.min(1, v * dt / L)); } return L; };
+    const flyH = st.swim ? 1.25 : sty === "goose" ? 2.6 : 1.95;
+    const orbitR = (ground ? 1.05 : st.swim ? 1.0 : sty === "goose" ? 1.8 : .85) * (1 + .12 * Math.sin(S.pt * .7 + S.seed));   // 輪は少し息をするように
+    const wob = sty === "butterfly" ? Math.sin(T * 2.3 + S.seed) * .2 : sty === "dragonfly" ? Math.sin(T * 1.3 + S.seed) * .1 : 0;
+    const orbitPt = ang => ground ? V(base.x + Math.cos(ang) * orbitR, 0, base.z + Math.sin(ang) * orbitR) : V(base.x + Math.cos(ang) * orbitR, flyH + Math.sin(ang * 2) * .14 + wob, base.z + Math.sin(ang) * orbitR);
+    // なめらかに進む：着くまえに速さを落とし、向きも速さも少しずつ変える。arc＝横へふくらむ弧（鳥と虫は少し上へも）
+    const steer = (to, v, arc, k = ground ? 5 : 3.2) => {
+      const d = to.clone().sub(pos), L = d.length(); let aim = to;
+      if (arc && L > .3) { const sd = V(-d.z, 0, d.x); if (sd.lengthSq() > 1e-6) sd.normalize(); aim = to.clone().addScaledVector(sd, S.side * Math.min(1.1, L * .45)); if (!ground) aim.y += Math.min(.45, L * .18); }
+      const want = aim.clone().sub(pos), wl = want.length(); if (wl > 1e-4) want.multiplyScalar(Math.min(v, wl * 2.2) / wl); else want.set(0, 0, 0);
+      S.v.lerp(want, 1 - Math.exp(-dt * k)); pos.addScaledVector(S.v, dt); if (S.v.lengthSq() > 1e-5) F = S.v.clone();
+      return L;
+    };
+    const hopY = () => hop ? Math.abs(Math.sin(S.pt * 4.2)) * .3 : 0;
     if (S.ph === 0) {   // 抜け出る：絵の前へ浮かび出て、大きくなる
+      if (lead && S.pt <= dt + 1e-6) emit("out", it, p);
       const k = Math.min(1, S.pt / 1.0); pos.copy(p).addScaledVector(n, .2 + .8 * k); pt.sc = 1 + (near - 1) * smooth(k);
       if (ground) pos.y = Math.max(p.y - k * (p.y - pt.bh * pt.sc / 2), pt.bh * pt.sc / 2);
-      if (k >= 1) { S.ph = 1; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); }
-    } else if (S.ph === 1) {   // 碧へ近づく（回りはじめの点へ）
-      const L = step(orbitPt(S.ang), spd); if (ground) pos.y = pt.bh * pt.sc / 2 + (st.ground === "hop" ? Math.abs(Math.sin(S.pt * 4.2)) * .3 : 0);
-      if (L < .25 || S.pt > 8) { S.ph = 2; S.pt = 0; }
+      if (k >= 1) { S.ph = 1; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); S.v.copy(n).multiplyScalar(.4); }
+    } else if (S.ph === 1) {   // 碧へ近づく（弧を描いて、回りはじめの点へ）
+      const L = steer(orbitPt(S.ang), spd, true); if (ground) pos.y = pt.bh * pt.sc / 2 + hopY();
+      if (L < .3 || S.pt > 8) { S.ph = 2; S.pt = 0; }
     } else if (S.ph === 2) {   // 碧のまわりを回る
-      const w = spd / orbitR * (st.swim ? .8 : 1); S.ang += S.dir * w * dt; const q = orbitPt(S.ang); F = q.clone().sub(pos); pos.lerp(q, Math.min(1, dt * 6));
-      if (ground) pos.y = pt.bh * pt.sc / 2 + (st.ground === "hop" ? Math.abs(Math.sin(S.pt * 4.2)) * .3 : 0);
+      const w = spd / orbitR * (st.swim ? .8 : 1); S.ang += S.dir * w * dt; const q = orbitPt(S.ang), was = pos.clone(); F = q.clone().sub(pos); pos.lerp(q, Math.min(1, dt * 4));
+      S.v.copy(pos).sub(was).divideScalar(Math.max(dt, 1e-3));
+      if (ground) pos.y = pt.bh * pt.sc / 2 + hopY();
       const loops = ground ? 1 : 1.4;
-      if (S.pt * w > loops * Math.PI * 2) { S.ph = perch && hand && !A.none ? 3 : 5; S.pt = 0; }
-    } else if (S.ph === 3) {   // 差し出した手へ
+      if (S.pt * w > loops * Math.PI * 2) { S.ph = perch && hand && !A.none ? 3 : 5; S.pt = 0; S.nest = S.ang; }
+    } else if (S.ph === 3) {   // 差し出した手へ（最後はふわりと速さを落とす）
       pt.sc += (near * .72 - pt.sc) * Math.min(1, dt * 3);   // 手にとまるときは、少し小さく（手の大きさに合わせて）
-      const to = hand.clone().add(V(0, lift(pt, st), 0)); const L = step(to, 1.4);
-      if (L < .06 || S.pt > 3) { S.ph = 31; S.pt = 0; }
-    } else if (S.ph === 31) {   // 手にとまる（翼をたたむ）
-      pos.copy(hand).add(V(0, lift(pt, st), 0)); F = V(head.x - pos.x, 0, head.z - pos.z).negate();
+      const to = hand.clone().add(V(0, lift(pt, st), 0)); const L = steer(to, 1.5, S.pt < 1.2, 4.5);
+      if (L < .05 || S.pt > 3.5) { S.ph = 31; S.pt = 0; S.v.set(0, 0, 0); S.hopT = rnd(1.4, 2.4); if (lead) emit("land", it, pos); }
+    } else if (S.ph === 31) {   // 手にとまる（翼をたたむ）。ときどき小さく跳ねて向きを変える・首をかしげる
+      let hy = 0; S.hopT -= dt;
+      if (S.hopT < 0 && sty !== "butterfly" && sty !== "dragonfly") { const k = Math.min(1, -S.hopT / .26); hy = Math.sin(Math.PI * k) * .035; if (k >= 1) { S.hopT = rnd(1.6, 3.2); S.face = (S.face || 0) + rnd(-.9, .9); } }
+      pos.copy(hand).add(V(0, lift(pt, st) + hy, 0)); F = V(head.x - pos.x, 0, head.z - pos.z).negate();
       if (st.flapHz) u.uA.value += (-.15 - u.uA.value) * Math.min(1, dt * 8);
-      if (S.pt > 6) { S.ph = 2; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); }   // 説明が続くあいだは、手にとまる → また回る
-    } else if (S.ph === 5) {   // 大きな鳥・魚・地面のもの：碧のそばで少し止まる
-      if (ground) pos.y = pt.bh * pt.sc / 2; F = V(base.x - pos.x, 0, base.z - pos.z);
-      if (st.flapHz && it.a.style !== "goose") u.uA.value += (-.15 - u.uA.value) * Math.min(1, dt * 8);
-      if (S.pt > (ground ? 4 : 3)) { S.ph = 2; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); }
+      if (S.pt > 6.5) { S.ph = 2; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); if (lead) emit("flap", it, pos); }   // 説明が続くあいだは、手にとまる → また回る
+    } else if (S.ph === 5) {   // 大きな鳥・魚・地面のもの：碧のそばに寄り添う（地面のものは足もとへ、魚は胸の前へ）
+      const rr = ground ? (hop ? .62 : .85) : st.swim ? .78 : sty === "goose" ? 1.3 : .8, a = S.nest + S.dir * .35;
+      const to = ground ? V(base.x + Math.cos(a) * rr, 0, base.z + Math.sin(a) * rr) : V(base.x + Math.cos(a) * rr, (st.swim ? 1.15 : flyH * .8) + Math.sin(T * .9 + S.seed) * .06, base.z + Math.sin(a) * rr);
+      steer(to, spd * .6, false, 3);
+      if (ground) { let hy = 0; S.hopT -= dt; if (hop && S.hopT < 0) { const k = Math.min(1, -S.hopT / .3); hy = Math.sin(Math.PI * k) * .12; if (k >= 1) { S.hopT = rnd(1.8, 3.4); if (lead) emit("step", it, pos); } } pos.y = pt.bh * pt.sc / 2 + hy; }
+      if (S.v.lengthSq() < .01) F = V(base.x - pos.x, 0, base.z - pos.z);
+      if (st.flapHz && sty !== "goose") u.uA.value += (-.15 - u.uA.value) * Math.min(1, dt * 8);
+      if (S.pt > (ground ? 5 : 3.5)) { S.ph = 2; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); }
     } else if (S.ph === 4) {   // 絵へもどる
       if (!S.curve) S.curve = new THREE.CatmullRomCurve3([S.from, S.from.clone().lerp(p, .5).setY(Math.max(p.y, S.from.y) + (ground ? .2 : .5)), p.clone().addScaledVector(n, .5), p.clone()], false, "centripetal", .5);
       const D = Math.max(1.6, S.from.distanceTo(p) / (spd * 1.2)), k = Math.min(1, S.pt / D), s = smooth(k);
       pos.copy(S.curve.getPointAt(s)); F = S.curve.getTangentAt(Math.min(.999, Math.max(.001, s))); pt.sc = 1 + (near - 1) * smooth(1 - Math.max(0, (k - .55) / .45));
       pt.mat.uniforms.uOp.value = 1 - smooth(Math.max(0, (k - .92) / .08));
+      if (k < .85) watch = { pos: pos.clone(), perch: false, ret: true, ph: 4, id: it.a.id, style: sty, t: performance.now() };
       if (k >= 1) { pt.done = true; restAt(it, pt); S.curve = null; pt.m3?.setOpacity(0); return true; }
+    }
+    // 音（いちばんはじめの写しだけが鳴らす）：鳴き声はときどき、動きの音は動いているあいだ
+    if (lead && S.ph >= 1 && S.ph !== 4) {
+      S.nCall -= dt; if (S.nCall <= 0) { S.nCall = sty === "heron" ? rnd(13, 20) : sty === "goose" ? rnd(8, 12) : rnd(6.5, 11); if (CALLER.has(sty)) emit("call", it, pos); }
+      const moving = S.ph === 1 || S.ph === 2 || S.ph === 3;
+      S.nMove -= dt;
+      if (moving && S.nMove <= 0) {
+        const ty = st.swim ? "swirl" : sty === "butterfly" ? "flutter" : sty === "dragonfly" ? "dart" : st.flapHz ? "flap" : null;
+        S.nMove = st.swim ? rnd(3, 5) : sty === "butterfly" ? rnd(3.5, 6) : sty === "dragonfly" ? rnd(2.5, 4.5) : rnd(1.8, 3.2);
+        if (ty) emit(ty, it, pos);
+      }
+      if (hop && (S.ph === 1 || S.ph === 2)) { const hi = Math.floor(S.pt * 4.2 / Math.PI); if (hi !== S.hi) { S.hi = hi; emit("step", it, pos); } }
     }
     if (S.ph !== 4) pt.mat.uniforms.uOp.value = Math.min(1, t / .5);
     orient(pt, pos, F, !!(ground || st.wander || st.swim || st.dart));
     // 立体の生きもの（creatures3d.js）：平らな写しは絵から出る一瞬と、絵へもどる一瞬だけ。外にいるあいだは立体（2026-10-09 本人「3D をしっかり作り込んで」）
-    if (!pt.m3) { const img = pt.mat.uniforms.uMap.value.image; if (img && img.width) { pt.m3 = CR.make(it.a.style, img); world.add(pt.m3.G); pt.m3.G.traverse(m => { if (m.isMesh) { m.userData = { animPart: it }; clickables.push(m); } }); } }
+    if (!pt.m3) { const img = pt.mat.uniforms.uMap.value.image; if (img && img.width) { pt.m3 = CR.make(sty, img); world.add(pt.m3.G); pt.m3.G.traverse(m => { if (m.isMesh) { m.userData = { animPart: it }; clickables.push(m); } }); } }
     if (pt.m3) {
       let k3 = 1;
       if (S.ph === 0) k3 = smooth(Math.min(1, S.pt / .8));
@@ -311,15 +348,22 @@ export function createExhibit(o) {
       const G = pt.m3.G, L3 = pt.sc * Math.max(pt.bw, pt.bh) * (st.ground ? .95 : st.swim ? .95 : .8);
       G.scale.setScalar(L3); G.position.copy(pos);
       let F3 = F.clone(); if (ground || S.ph === 31 || S.ph === 5) F3.y = 0;
-      if (S.ph === 31) { const c = camera.position.clone().sub(pos); c.y = 0; F3 = V(-c.z, 0, c.x); }   // 手にとまったら、見る人に横顔を見せる
+      if (S.ph === 31) { const c = camera.position.clone().sub(pos); c.y = 0; F3 = V(-c.z, 0, c.x).applyAxisAngle(UP, S.face || 0); }   // 手にとまったら、見る人に横顔を見せる（跳ねるたびに少し向きを変える）
       if (F3.lengthSq() < 1e-6) F3.set(0, 0, 1); F3.normalize();
       if (ground) G.position.y = pos.y - pt.bh * pt.sc / 2;   // 足もとを床に
-      tmpT.copy(G.position).add(F3); G.lookAt(tmpT);
-      const fold = S.ph === 31 || (S.ph === 5 && it.a.style !== "goose") ? 1 : 0;
+      // 向きは少しずつ変える（急に振り向かない）
+      tmpT.copy(G.position).add(F3); M4.lookAt(tmpT, G.position, UP); tmpQ.setFromRotationMatrix(M4);
+      if (!pt.q3 || S.ph === 0) pt.q3 = tmpQ.clone(); else pt.q3.slerp(tmpQ, 1 - Math.exp(-dt * (S.ph === 31 ? 5 : 7)));
+      G.quaternion.copy(pt.q3);
+      const fold = S.ph === 31 || (S.ph === 5 && sty !== "goose") ? 1 : 0;
       pt.m3.f = (pt.m3.f ?? 0) + (fold - (pt.m3.f ?? 0)) * Math.min(1, dt * 4);
-      pt.m3.update({ flap: u.uA.value, fold: pt.m3.f, t: T, swim: u.uWaveP.value || T * 8, amp: .06 + (it.react > 0 ? .06 : 0), hop: st.ground === "hop" && S.ph >= 1 && S.ph <= 2 ? Math.abs(Math.sin(S.pt * 4.2)) : 0 });
+      // 碧の顔の向き（手の上・そばでは、ときどき碧を見上げる）
+      let look = 0; if ((S.ph === 31 || S.ph === 5) && head) { const toH = V(head.x - pos.x, 0, head.z - pos.z).normalize(), fw = V(0, 0, 1).applyQuaternion(G.quaternion); fw.y = 0; fw.normalize(); look = Math.atan2(fw.clone().cross(toH).y, fw.dot(toH)) * (.5 + .5 * Math.sin(T * .8 + S.seed)); }
+      const bflap = sty === "butterfly" && S.ph === 31 ? .55 + .45 * Math.abs(Math.sin(T * 1.1 + S.seed)) : null;   // 蝶は手の上で、ゆっくり翅をひらいて閉じる
+      pt.m3.update({ flap: u.uA.value, fold: bflap ?? pt.m3.f, t: T, swim: u.uWaveP.value || T * 8, amp: .06 + (it.react > 0 ? .06 : 0) + (S.ph === 5 && st.swim ? .03 : 0), hop: hop && S.ph >= 1 && S.ph <= 2 ? Math.abs(Math.sin(S.pt * 4.2)) : 0, look: Math.max(-1, Math.min(1, look)) });
     }
-    if (S.ph >= 1 && S.ph !== 4) watch = { pos: pos.clone(), perch: S.ph === 3 || S.ph === 31, t: performance.now() };
+    if (S.ph >= 1 && S.ph !== 4) watch = { pos: pos.clone(), perch: S.ph === 3 || S.ph === 31, landed: S.ph === 31, near: S.ph === 5, ph: S.ph, id: it.a.id, style: sty, t: performance.now() };
+    it.cpos = pos; it.cph = S.ph;
     return false;
   }
   function groundTick(it, pt, t, D) {
@@ -409,5 +453,6 @@ export function createExhibit(o) {
   function release(it) { it.release = true; it.arrived = true; }
   function react(it) { if (it.state === "rest") return false; it.react = .9; return true; }
   function abort(it) { for (const pt of it.parts) { pt.m.visible = false; pt.m3?.setOpacity(0); pt.done = true; pt.hold = false; } it.state = "rest"; it.release = false; }
-  return { items, roomItems, attach, watch: () => (watch && performance.now() - watch.t < 300 ? watch : null), tick, start, guide, release, abort, react, find: id => items.find(i => i.a.id === id) };
+  const outs = () => [...items, ...roomItems].filter(it => it.state !== "rest" && it.cpos);
+  return { items, roomItems, attach, outs, watch: () => (watch && performance.now() - watch.t < 300 ? watch : null), tick, start, guide, release, abort, react, find: id => items.find(i => i.a.id === id) };
 }

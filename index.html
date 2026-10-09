@@ -49,6 +49,15 @@ body.inlib #listBtn{display:none}
 #veil{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;background:#000}
 #veil.go{animation:veil 1.5s ease-out}
 @keyframes veil{0%{opacity:0}30%{opacity:.42}100%{opacity:0}}
+/* いま出ている生きものの小さな札（2026-10-09 本人「それとなく、今動いている生き物の解説を」）：生きもののそばに浮かぶ。碧の字幕より薄く */
+#crCard{position:fixed;left:0;top:0;z-index:4;pointer-events:none;max-width:min(260px,62vw);padding:6px 10px 7px;border-radius:10px;background:rgba(16,12,8,.5);border:1px solid rgba(201,164,92,.28);color:var(--ink);font-size:14px;line-height:1.5;opacity:0;transition:opacity .7s;text-shadow:0 1px 6px rgba(0,0,0,.8);will-change:transform}
+#crCard.on{opacity:.9}
+#crCard.srOnly{width:1px;height:1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);opacity:0}
+#crCard b{font-family:var(--mincho);font-size:16px;font-weight:600;letter-spacing:.08em;color:var(--gold2)}
+#crCard i{display:inline-block;white-space:nowrap;font-size:14px;color:var(--dim);margin-left:7px}
+#crCard p{margin:2px 0 0;font-size:14px;color:#ece3cf}
+body.hi #crCard{background:#000;border-color:#fff;opacity:1}
+@media (prefers-reduced-motion:reduce){#crCard{transition:none}}
 #roomCard{position:fixed;left:50%;top:22%;transform:translate(-50%,8px);z-index:4;pointer-events:none;text-align:center;opacity:0;transition:opacity .8s,transform .8s;width:min(90vw,560px);text-shadow:0 2px 12px rgba(0,0,0,.75)}
 #roomCard.on{opacity:1;transform:translate(-50%,0)}
 #roomCard .k{font-size:14px;letter-spacing:.3em;color:var(--gold2)}
@@ -307,6 +316,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <script src="loader/loader.js" data-title="森羅博物館" data-en="Shinra Museum" data-icon="favicon/icon.svg" data-replace="boot"></script>
 <div id="stage" tabindex="0" aria-label="3D の場。床を押すと歩き、作品や本を押すと近づく。キーボードでは W A S D と矢印で動く"></div>
 <div id="veil"></div>
+<div id="crCard" role="note" aria-live="polite" aria-atomic="true"><b id="crName"></b><i id="crSci" lang="la"></i><p id="crLine"></p></div>
 <div id="roomCard" aria-hidden="true"><div class="k" id="rcK"></div><b id="rcB"></b><span id="rcS"></span></div>
 <div id="fade"></div>
 

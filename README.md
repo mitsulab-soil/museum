@@ -18,7 +18,9 @@ mitsulab の連作《森羅百景》の作品を、3D の館で見る・読む�
 - 背景の音楽：Kevin MacLeod「Erik Satie: Gymnopedie No 1／No 2／No 3」「Meditation Impromptu 02」（CC BY 3.0 <https://creativecommons.org/licenses/by/3.0/>。Wikimedia Commons／Free Music Archive。改変＝モノラル化・音量・ループ）。
 - 碧の声：VOICEVOX:冥鳴ひまり
 - 床と壁の質感：Poly Haven「Herringbone Parquet」「Marble 01」「Castle Brick 02 White」「Dirty Carpet」（CC0）。ほかの材質はページの中で描いています。
-- 企画展の生きものの鳴き声：Wikimedia Commons の録音（ウグイス＝nnn・CC BY 2.1 JP／ツバメ＝Justin Wasack・CC BY 3.0／ダイサギ＝Stanislas Wroza・CC BY 4.0）、Freesound の録音（スズメ＝Yle Arkisto・CC BY 4.0）。改変＝切り出し・音量。
+- 絵から出る生きものの鳴き声：Wikimedia Commons の録音（ウグイス＝nnn・CC BY 2.1 JP／ツバメ＝Justin Wasack・CC BY 3.0／ダイサギ＝Stanislas Wroza・CC BY 4.0／マガン＝Joost van Bruggen〈xeno-canto XC432936・オランダで録音〉・CC BY-SA 4.0 <https://creativecommons.org/licenses/by-sa/4.0/>）、Freesound の録音（スズメ＝Yle Arkisto・CC BY 4.0）。改変＝切り出し・音量。
+- 生きものの動きの音（羽ばたき・水音・足音）：Freesound の CC0 の録音（XfiXy8／Clusman／Kinoton／TRP／RatBird／kylecutsfilms／nmscher／Nightflame）。改変＝切り出し・モノラル・音量・一部は高さを変えた。
+- 生きものの札のひとこと：日本語版ウィキペディアの各項目（スズメ・ツバメ・ウグイス・マガン・白鷺・チョウ・トンボ・コイ・ノウサギ属）で確かめた、図鑑の基本の範囲の一文。
 - 碧の 3D の姿：© mitsulab（このページの中で表示するためだけに置いています。持ち出し・再配布はできません）。
 - 表示の道具：three.js・three-vrm（MIT）。
 - 韓国語の字の書体：Noto Serif KR（SIL Open Font License 1.1）を使う字だけに絞った写し。
