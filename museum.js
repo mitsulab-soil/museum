@@ -537,8 +537,10 @@ const animWork = a => { const r = rooms.find(x => x.slug === a.room), k = r?.kei
 const _hv = new THREE.Vector3(), _hd = new THREE.Vector3();
 function getAoi() {
   if (!vrm || !aoi || !aoi.visible || mode !== "walk" || space !== "museum" || !A.pos) return null;
-  const hb = vrm.humanoid?.getRawBoneNode?.("leftHand"), hd = vrm.humanoid?.getRawBoneNode?.("head");
-  return { pos: new THREE.Vector3(A.pos.x, 0, A.pos.z), hand: hb ? hb.getWorldPosition(_hv).clone() : new THREE.Vector3(A.pos.x, 1.1, A.pos.z), head: hd ? hd.getWorldPosition(_hd).clone() : new THREE.Vector3(A.pos.x, 1.5, A.pos.z) };
+  const hb = vrm.humanoid?.getRawBoneNode?.("leftHand"), hd = vrm.humanoid?.getRawBoneNode?.("head"), mp = vrm.humanoid?.getRawBoneNode?.("leftMiddleProximal");
+  // 手のひら＝手首（手の骨）と中指の付け根のあいだ。手の骨そのもの（手首）や指の高さで取ると、とまる位置がずれる（2026-10-09）
+  let palm = null; if (hb) { palm = hb.getWorldPosition(_hv).clone(); if (mp) palm.lerp(mp.getWorldPosition(new THREE.Vector3()), .6); palm.y += .012; }
+  return { pos: new THREE.Vector3(A.pos.x, 0, A.pos.z), hand: palm || new THREE.Vector3(A.pos.x, 1.1, A.pos.z), head: hd ? hd.getWorldPosition(_hd).clone() : new THREE.Vector3(A.pos.x, 1.5, A.pos.z) };
 }
 const EX = createExhibit({ THREE, world, rooms, FACES, WF, R, OBST, darkWood, poolMat, clickables, giltMat, brassMat, camera, getRM: () => RM, getAoi,
   labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm), onLanded: it => { if (guideIt === it) guideIt = null; } });

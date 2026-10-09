@@ -250,6 +250,8 @@ export function createExhibit(o) {
     if (s >= 1 && !pt.path.hold) { pt.done = true; restAt(it, pt); }
     return s >= 1;
   }
+  // 手のひらから体の中心までの高さ：立体の生きものは足の先（footY）を手のひらに合わせる（2026-10-09 HP の担当「手より 20 cm 上に浮いて見える」）
+  const lift = (pt, st) => pt.m3 && pt.m3.footY != null ? -pt.m3.footY * pt.sc * Math.max(pt.bw, pt.bh) * (st.ground ? .95 : st.swim ? .95 : .8) : .05 + pt.bh * pt.sc * .35;
   function aoiTick(it, pt, dt, T, t) {
     const st = pt.st, S = pt.ap, { p, n } = restPose(it, pt), u = pt.mat.uniforms;
     let A = o.getAoi && o.getAoi();
@@ -280,10 +282,10 @@ export function createExhibit(o) {
       if (S.pt * w > loops * Math.PI * 2) { S.ph = perch && hand && !A.none ? 3 : 5; S.pt = 0; }
     } else if (S.ph === 3) {   // 差し出した手へ
       pt.sc += (near * .72 - pt.sc) * Math.min(1, dt * 3);   // 手にとまるときは、少し小さく（手の大きさに合わせて）
-      const to = hand.clone().add(V(0, .05 + pt.bh * pt.sc * .35, 0)); const L = step(to, 1.4);
+      const to = hand.clone().add(V(0, lift(pt, st), 0)); const L = step(to, 1.4);
       if (L < .06 || S.pt > 3) { S.ph = 31; S.pt = 0; }
     } else if (S.ph === 31) {   // 手にとまる（翼をたたむ）
-      pos.copy(hand).add(V(0, .05 + pt.bh * pt.sc * .35, 0)); F = V(head.x - pos.x, 0, head.z - pos.z).negate();
+      pos.copy(hand).add(V(0, lift(pt, st), 0)); F = V(head.x - pos.x, 0, head.z - pos.z).negate();
       if (st.flapHz) u.uA.value += (-.15 - u.uA.value) * Math.min(1, dt * 8);
       if (S.pt > 6) { S.ph = 2; S.pt = 0; S.ang = Math.atan2(pos.z - base.z, pos.x - base.x); }   // 説明が続くあいだは、手にとまる → また回る
     } else if (S.ph === 5) {   // 大きな鳥・魚・地面のもの：碧のそばで少し止まる

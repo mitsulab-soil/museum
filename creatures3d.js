@@ -146,6 +146,7 @@ export function createCreatures(THREE) {
       if (sp === "goose") { const web = new THREE.Mesh(new THREE.CircleGeometry(P.leg * .35, 3, -Math.PI * .75, Math.PI * .5), plain(legCol, { side: THREE.DoubleSide })); web.rotation.x = -Math.PI / 2; ft.add(web); }
       parts.legs.push(lg);
     }
+    parts.footY = -(P.bh * .6 + P.leg) - .006;   // 足指の下の高さ（体長＝1 の単位）。手にとまるときに、ここを手のひらに合わせる
     parts.update = (st) => {   // st：{ flap（翼の角度・はばたき）, fold（0 ひらく〜1 たたむ）, t }
       const f = st.fold ?? 0, a = st.flap ?? 0;
       for (const w of parts.wings) {
@@ -261,6 +262,7 @@ export function createCreatures(THREE) {
       const w = new THREE.Mesh(wingShape(fore), new THREE.MeshStandardMaterial({ map: wt, transparent: true, opacity: dfly ? .7 : .97, side: THREE.DoubleSide, roughness: .6, envMapIntensity: .3, depthWrite: !dfly, alphaTest: dfly ? 0 : .2 }));
       w.rotation.x = -Math.PI / 2; if (s < 0) w.scale.x = -1; if (dfly) w.rotation.z = fore ? .12 * s : -.12 * s; hinge.add(w); parts.wings.push({ hinge, s, fore });
     }
+    parts.footY = -.11;   // 脚の先の高さ
     parts.update = (st) => {
       const a = st.flap ?? 0, f = st.fold ?? 0;
       for (const w of parts.wings) {
