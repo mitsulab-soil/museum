@@ -9,6 +9,7 @@
      <script src="loader/loader.js" data-title="森羅博物館" data-en="Shinra Museum" data-icon="favicon/icon.svg"></script>
      … 読み込みの途中で  MLLoader.progress(0.42)  （0〜1。呼ばなければ、ゆっくり進む「おまかせ」の表示）
      … 終わったら        MLLoader.done()
+   自分で呼ばないページは data-auto="load"（ページの load で消える）。data-max="8000" で、どんなときも 8 秒で消える。
    既にある読み込み画面を置きかえるときは、その要素を消すか隠す（id を data-replace="boot" で渡すと、その要素は隠す）。 */
 (function () {
   if (window.MLLoader) return;
@@ -94,4 +95,7 @@
     },
     el,
   };
+  // 自分で done() を呼ばないページ：data-auto="load" で、ページの load の合図で消す。data-max（ミリ秒）で、どんなときもそこで消す
+  if (D.auto === "load") { if (document.readyState === "complete") setTimeout(() => window.MLLoader.done(), 300); else addEventListener("load", () => window.MLLoader.done()); }
+  if (D.max) setTimeout(() => window.MLLoader.done(), +D.max);
 })();
