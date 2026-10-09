@@ -1704,7 +1704,7 @@ function updWhere() {
 const START = new THREE.Vector3(0, 0, 3.6);
 function placeStart() { space = "museum"; me.pos.set(START.x, EYE, START.z); me.yaw = 0; me.pitch = -.03; me.path = []; document.body.classList.remove("inlib"); }
 function enterWalk() {
-  mode = "walk"; $("boot").classList.add("gone"); setTimeout(() => { $("boot").hidden = true; }, 1000);
+  mode = "walk"; window.MLLoader?.done(); $("boot").classList.add("gone"); setTimeout(() => { $("boot").hidden = true; }, 1000);
   $("top").hidden = false; $("shelfBar").hidden = space !== "library"; applyOpts();
   zone.key = null; setZone(zoneOf(), true); stage.focus({ preventScroll: true });
 }
@@ -1774,7 +1774,7 @@ function tick() {
   if (!document.hidden && ($("reader").hidden || (frames++ % 4 === 0))) { renderer.render(scene, camera); frames++; }   // 本をひらいているあいだも、うしろの部屋は描く（間引いて）
   requestAnimationFrame(tick);
 }
-function prog(p) { $("prog").querySelector("i").style.width = Math.round(p) + "%"; }
+function prog(p) { $("prog").querySelector("i").style.width = Math.round(p) + "%"; window.MLLoader?.progress(p / 100); }   // mitsulab 共通の読み込み画面（loader/・2026-10-09）
 
 placeStart(); resize(); camera.position.copy(me.pos); camera.rotation.set(me.pitch, me.yaw, 0, "YXZ"); setZone(zoneOf(), true); streamBays();
 
