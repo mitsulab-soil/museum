@@ -271,8 +271,9 @@ export function createExhibit(o) {
     // 説明が終わったら（bound が外れたら）、どの段からでも絵へ帰る
     if (!it.bound && S.ph >= 1 && S.ph !== 4) { S.ph = 4; S.pt = 0; S.from = pos.clone(); S.curve = null; if (lead) emit("back", it, pos); }
     const head = A ? A.head : null, hand = A ? A.hand : null, base = A ? A.pos : null;
-    const flyH = st.swim ? 1.25 : sty === "goose" ? 2.6 : 1.95;
-    const orbitR = (ground ? 1.05 : st.swim ? 1.0 : sty === "goose" ? 1.8 : .85) * (1 + .12 * Math.sin(S.pt * .7 + S.seed));   // 輪は少し息をするように
+    // 2026-10-13：雁と鯉がカメラのすぐ前を横切って絵と札を隠していた → 雁は高く大きな輪、鯉は少し大きな輪に
+    const flyH = st.swim ? 1.25 : sty === "goose" ? 2.75 : 1.95;
+    const orbitR = (ground ? 1.05 : st.swim ? 1.2 : sty === "goose" ? 2.3 : .85) * (1 + .12 * Math.sin(S.pt * .7 + S.seed));   // 輪は少し息をするように
     const wob = sty === "butterfly" ? Math.sin(T * 2.3 + S.seed) * .2 : sty === "dragonfly" ? Math.sin(T * 1.3 + S.seed) * .1 : 0;
     const orbitPt = ang => ground ? V(base.x + Math.cos(ang) * orbitR, 0, base.z + Math.sin(ang) * orbitR) : V(base.x + Math.cos(ang) * orbitR, flyH + Math.sin(ang * 2) * .14 + wob, base.z + Math.sin(ang) * orbitR);
     // なめらかに進む：着くまえに速さを落とし、向きも速さも少しずつ変える。arc＝横へふくらむ弧（鳥と虫は少し上へも）
@@ -297,9 +298,10 @@ export function createExhibit(o) {
       S.v.copy(pos).sub(was).divideScalar(Math.max(dt, 1e-3));
       if (ground) pos.y = pt.bh * pt.sc / 2 + hopY();
       const loops = ground ? 1 : 1.4;
-      if (S.pt * w > loops * Math.PI * 2) { S.ph = perch && hand && !A.none ? 3 : 5; S.pt = 0; S.nest = S.ang; }
+      // 雁はその場で浮いていられない（2026-10-13）：寄り添う段へは行かず、大きな輪を描いて回りつづける
+      if (S.pt * w > loops * Math.PI * 2) { S.ph = perch && hand && !A.none ? 3 : sty === "goose" ? 2 : 5; S.pt = 0; S.nest = S.ang; }
     } else if (S.ph === 3) {   // 差し出した手へ（最後はふわりと速さを落とす）
-      pt.sc += (near * .72 - pt.sc) * Math.min(1, dt * 3);   // 手にとまるときは、少し小さく（手の大きさに合わせて）
+      pt.sc += (near * .56 - pt.sc) * Math.min(1, dt * 3);   // 手にとまるときは、少し小さく（手の大きさに合わせて。2026-10-13 雀が前腕ほどに見えたので .72→.56）
       const to = hand.clone().add(V(0, lift(pt, st), 0)); const L = steer(to, 1.5, S.pt < 1.2, 4.5);
       if (L < .05 || S.pt > 3.5) { S.ph = 31; S.pt = 0; S.v.set(0, 0, 0); S.hopT = rnd(1.4, 2.4); if (lead) emit("land", it, pos); }
     } else if (S.ph === 31) {   // 手にとまる（翼をたたむ）。ときどき小さく跳ねて向きを変える・首をかしげる
@@ -360,7 +362,8 @@ export function createExhibit(o) {
       // 碧の顔の向き（手の上・そばでは、ときどき碧を見上げる）
       let look = 0; if ((S.ph === 31 || S.ph === 5) && head) { const toH = V(head.x - pos.x, 0, head.z - pos.z).normalize(), fw = V(0, 0, 1).applyQuaternion(G.quaternion); fw.y = 0; fw.normalize(); look = Math.atan2(fw.clone().cross(toH).y, fw.dot(toH)) * (.5 + .5 * Math.sin(T * .8 + S.seed)); }
       const bflap = sty === "butterfly" && S.ph === 31 ? .55 + .45 * Math.abs(Math.sin(T * 1.1 + S.seed)) : null;   // 蝶は手の上で、ゆっくり翅をひらいて閉じる
-      pt.m3.update({ flap: u.uA.value, fold: bflap ?? pt.m3.f, t: T, swim: u.uWaveP.value || T * 8, amp: .06 + (it.react > 0 ? .06 : 0) + (S.ph === 5 && st.swim ? .03 : 0), hop: hop && S.ph >= 1 && S.ph <= 2 ? Math.abs(Math.sin(S.pt * 4.2)) : 0, look: Math.max(-1, Math.min(1, look)) });
+      // 2026-10-13 生き物 v2（胡蝶の夢の質）：段（ph）・その段の秒（pt）・速さ（spd）・体の長さ（L）も渡す。動き方は生きものの中で決める
+      pt.m3.update({ flap: u.uA.value, fold: bflap ?? pt.m3.f, t: T, swim: u.uWaveP.value || T * 8, amp: .06 + (it.react > 0 ? .06 : 0) + (S.ph === 5 && st.swim ? .03 : 0), hop: hop && S.ph >= 1 && S.ph <= 2 ? Math.abs(Math.sin(S.pt * 4.2)) : 0, look: Math.max(-1, Math.min(1, look)), ph: S.ph, pt: S.pt, spd: S.v ? S.v.length() : 0, L: L3, react: it.react > 0 });
     }
     if (S.ph >= 1 && S.ph !== 4) watch = { pos: pos.clone(), perch: S.ph === 3 || S.ph === 31, landed: S.ph === 31, near: S.ph === 5, ph: S.ph, id: it.a.id, style: sty, t: performance.now() };
     it.cpos = pos; it.cph = S.ph;

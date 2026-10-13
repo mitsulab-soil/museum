@@ -14,6 +14,8 @@ import { esc, fname, licHTML, credit } from "./common.js";
 import { LIB, libWalkable, buildLibrary, createReader, bookList } from "./library.js";
 import { createExhibit } from "./anim3d.js";
 import { createHolo } from "./holo.js";
+// 碧の動きと表情（共通の部品 AoiMotion の写し・2026-10-13）。kit/ は 12_ブランド/_共通3D/kit/ の aoi_motion.js・aoi_mocap.js・aoi_mocap.json・aoi_robe.js の写し
+import { AoiMotion } from "./kit/aoi_motion.js";
 
 const M = window.MUSEUM, T = M.tour, VOICE = window.VOICE || {}, NAMES = M.names;   // 表示する名前は names.json だけから
 window.__muBoot = true;
@@ -567,22 +569,23 @@ function crEvent(type, it, pos) {
 }
 // いま出ている生きものの小さな札（2026-10-09 本人「それとなく、今動いている生き物の解説を配置してください」）。
 //   和名・学名・ひとこと。ひとことは日本語版ウィキペディアの各項目で確かめた、図鑑の基本の範囲の一文だけ（⚙ の出典に記す）
+//   m＝見かた（2026-10-13）：いま 3D の生きものがしている動きと、その見方を結ぶ一言。典拠＝資料/生き物の形と動き_典拠.md
 const CR_INFO = {
-  suzume: { n: "雀（スズメ）", sci: "Passer montanus", t: "人家の近くでくらす小鳥。地面では両足をそろえて跳ねて進む。" },
-  tsubame: { n: "燕（ツバメ）", sci: "Hirundo rustica", t: "春に南から渡ってくる夏鳥。人里の近くに、泥と枯れ草をこねて巣をつくる。" },
-  uguisu: { n: "鶯（ウグイス）", sci: "Horornis diphone", t: "笹の多い林や藪を好む。「ホーホケキョ」は雄のさえずり。" },
-  gan: { n: "雁（マガン）", sci: "Anser albifrons", t: "北の高緯度の地で繁殖し、日本には冬鳥として渡ってくる。" },
-  sagi: { n: "白鷺（シラサギ）", sci: "Ardeidae", t: "ほぼ全身が白いサギのなかまの総称。ダイサギ・コサギなど。" },
-  chou: { n: "蝶（チョウ）", sci: "Papilionoidea", t: "4 枚の翅は鱗粉や毛でおおわれる。口はストローのように細長い。" },
-  tombo: { n: "蜻蛉（トンボ）", sci: "Odonata", t: "幼虫はヤゴと呼ばれ、水の中で育つ。長い 2 対の翅で飛ぶ。" },
-  koi: { n: "鯉（コイ）", sci: "Cyprinus carpio", t: "口ひげが 2 対あり、においや味を感じる。水の底で餌をさがす。" },
-  ido: { n: "野うさぎ（ノウサギのなかま）", sci: "Lepus", t: "地面の上でくらし、長い後ろ足で跳ねて走る。" },
+  suzume: { n: "雀（スズメ）", sci: "Passer montanus", t: "人家の近くでくらす小鳥。地面では両足をそろえて跳ねて進む。", m: "手の上で、首をすばやく向け替えては止める。止まったあいだに見る、小鳥の見方。" },
+  tsubame: { n: "燕（ツバメ）", sci: "Hirundo rustica", t: "春に南から渡ってくる夏鳥。人里の近くに、泥と枯れ草をこねて巣をつくる。", m: "長い翼で、はばたいては滑るように飛ぶ。" },
+  uguisu: { n: "鶯（ウグイス）", sci: "Horornis diphone", t: "笹の多い林や藪を好む。「ホーホケキョ」は雄のさえずり。", m: "首をすばやく向け替えては止め、まわりを見る。尾を上下に振る。" },
+  gan: { n: "雁（マガン）", sci: "Anser albifrons", t: "北の高緯度の地で繁殖し、日本には冬鳥として渡ってくる。", m: "宙には止まれないので、大きな輪を描いて回りつづける。" },
+  sagi: { n: "白鷺（シラサギ）", sci: "Ardeidae", t: "ほぼ全身が白いサギのなかまの総称。ダイサギ・コサギなど。", m: "ゆっくり歩き、立ち止まると首を伸ばして、じっと見つめる。" },
+  chou: { n: "蝶（チョウ）", sci: "Papilionoidea", t: "4 枚の翅は鱗粉や毛でおおわれる。口はストローのように細長い。", m: "止まると翅を閉じ、ときどき開く。" },
+  tombo: { n: "蜻蛉（トンボ）", sci: "Odonata", t: "幼虫はヤゴと呼ばれ、水の中で育つ。長い 2 対の翅で飛ぶ。", m: "止まると翅を水平にひろげ、頭を回して見まわす。" },
+  koi: { n: "鯉（コイ）", sci: "Cyprinus carpio", t: "口ひげが 2 対あり、においや味を感じる。水の底で餌をさがす。", m: "胸びれをあおいで体を保ち、口と鰓ぶたをゆっくり動かす。" },
+  ido: { n: "野うさぎ（ノウサギのなかま）", sci: "Lepus", t: "地面の上でくらし、長い後ろ足で跳ねて走る。", m: "鼻をひくつかせ、耳を左右べつべつに向ける。" },
 };
 const crc = { it: null, key: null, x: -999, y: -999, on: false }, CR_OTO = new URLSearchParams(location.search).get("mode") === "oto";
 function crShow(it) {
   const key = it.a.id.replace(/\d+$/, ""), I = CR_INFO[key]; if (!I) return;
   crc.it = it;
-  if (crc.key !== key) { crc.key = key; $("crName").textContent = I.n; $("crSci").textContent = I.sci; $("crLine").textContent = I.t; }
+  if (crc.key !== key) { crc.key = key; $("crName").textContent = I.n; $("crSci").textContent = I.sci; $("crLine").textContent = I.t; $("crSee").textContent = I.m ? "見かた：" + I.m : ""; }
 }
 const _cv = new THREE.Vector3();
 function crTick(dt) {
@@ -998,7 +1001,9 @@ function speakLine(text) {
   return new Promise(res => {
     SP.cur = text; $("say").textContent = text; A.talkT = 0; setTalking(true); window.__said = (window.__said || []).concat([text]).slice(-30);
     const v = VOICE[text];
-    const done = () => { clearTimeout(SP.timer); SP.timer = null; SP.resolve = null; SP.playing = false; setTalking(false); AUD.setDuck(1); res(); };
+    const done = () => { clearTimeout(SP.timer); SP.timer = null; SP.resolve = null; SP.playing = false; setTalking(false); AUD.setDuck(1); AM?.stopSpeaking(); res(); };
+    // 口・身ぶり・視線（AoiMotion）：声の再生位置に合わせる。声を切っているときは字幕の長さで
+    if (AM) { const el = AUD.voice; AM.speak(v && voiceOn() ? { kana: v.kana, dur: v.dur, clock: () => el.currentTime, level: () => clamp(AUD.level() * 7, 0, 1) } : { text, dur: est(text) / 1000 }); }
     SP.resolve = done;
     const timed = ms => { SP.rest = ms; SP.t0 = performance.now(); if (!SP.paused) SP.timer = setTimeout(done, ms); };
     if (v && voiceOn()) {
@@ -1311,6 +1316,7 @@ const joy = { on: false, x: 0, y: 0, id: null };
 // ---------------------------------------------------------------- 碧（依代）
 const AOI_H = 1.62;
 let aoi = null, vrm = null;
+let AM = null;   // 碧の動き（AoiMotion）
 const A = { pos: null, vel: new THREE.Vector3(), yaw: 0, sp: 0, k: 0, ph: 0, tk: 0, ws: 3, wsTo: .5, wsv: 0, tl: 14, tlT: null, tlS: 1, blink: 2, bt: -1, hip0: null, goal: null, look: null, point: 0, talkT: 0, springs: null, mouth: 0 };
 async function loadAoi() {
   try {
@@ -1331,6 +1337,9 @@ async function loadAoi() {
     A.gaze = new THREE.Object3D(); scene.add(A.gaze); if (v.lookAt) v.lookAt.target = A.gaze;
     const blob = new THREE.Mesh(new THREE.CircleGeometry(.42, 32), blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = .006; aoi.add(blob);
     A.springs = (v.springBoneManager?.joints ? [...v.springBoneManager.joints] : []).map(j => ({ j, g: j.settings.gravityDir.clone(), p: j.settings.gravityPower }));
+    // 2026-10-13：碧の体・顔・口・まばたき・揺れもの・裾は共通の部品（AoiMotion v4）。館に固有の仕草（手を差し出す・とまったら引き寄せる・手を振る・かがむ）だけを上に重ねる
+    try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY }); A.springs = null; }
+    catch (e) { console.warn("AoiMotion を使えませんでした（館の動きで続けます）：", e?.message ?? e); AM = null; }
     aoiJump();
     window.__aoi = { vrm, aoi, A };
   } catch (e) { console.warn("碧の姿を読み込めませんでした（声と字幕で案内します）：", e?.message ?? e); }
@@ -1344,6 +1353,7 @@ function inView(p) { const v = new THREE.Vector3(p.x, 1.2, p.z).project(camera);
 function aoiJump() {
   if (!aoi) return;
   const s = followSpot(); A.pos = s.clone(); A.vel.set(0, 0, 0); A.yaw = Math.atan2(me.pos.x - s.x, me.pos.z - s.z); A.calm = 1.2; A.fade = 0;
+  if (AM) { AM.place(s.x, s.z, A.yaw); AM.calm = Math.max(AM.calm, 1.2); }
 }
 function followSpot() {
   const reg = region(me.pos.x, me.pos.z);
@@ -1406,7 +1416,8 @@ function aoiTick(dt) {
   if (A.sp <= .35 && A.look) { const toW = Math.atan2(A.look.x - A.pos.x, A.look.z - A.pos.z); fy = toCam + wrapA(toW - toCam) * .5; }
   else if (A.sp <= .35) { const wt0 = EX.watch?.(); if (wt0) { const toW = Math.atan2(wt0.pos.x - A.pos.x, wt0.pos.z - A.pos.z); fy = toCam + wrapA(toW - toCam) * .45; } }
   A.yaw += clamp(wrapA(fy - A.yaw) * ease(dt, 4), -2.2 * dt, 2.2 * dt);
-  aoi.position.set(A.pos.x, groundY(A.pos.x, A.pos.z), A.pos.z); aoi.rotation.y = A.yaw;
+  if (AM) { AM.drive(A.pos.x, A.pos.z); AM.faceTo(fy); }   // 位置は館が決め（壁・扉）、足の運びと向きの踏みかえは AoiMotion
+  else { aoi.position.set(A.pos.x, groundY(A.pos.x, A.pos.z), A.pos.z); aoi.rotation.y = A.yaw; }
   aoi.visible = Math.hypot(A.pos.x - me.pos.x, A.pos.z - me.pos.z) > .9;
   const lookWork = A.look && A.talkT < 2.6;
   // 抜け出た生きものを目で追い、とまりそうなら左手を差し出す（2026-10-09 本人）
@@ -1432,6 +1443,7 @@ function aoiTick(dt) {
   }
   if (A.gaze) { if (lookWork) A.gaze.position.set(A.look.x, 1.9 + groundY(A.look.x, A.look.z), A.look.z); else if (watching) A.gaze.position.copy(wt.pos); else A.gaze.position.copy(camera.position); }
   A.talkT += dt;
+  if (AM) { amTick(dt, wt, watching, lookWork); if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); } return; }
   if (A.springs && !RM) { const t = performance.now() / 1000; for (const s of A.springs) { s.j.settings.gravityDir.set(s.g.x + .22 * Math.sin(t * .63 + s.g.y), s.g.y, s.g.z + .14 * Math.sin(t * .41)).normalize(); s.j.settings.gravityPower = Math.max(s.p, .05); } }
   aoiPose(dt, A.sp, wrapA(toCam - A.yaw), lookWork ? wrapA(Math.atan2(A.look.x - A.pos.x, A.look.z - A.pos.z) - A.yaw) : 0);
   // 口：声の大きさに合わせる（声を切っているときは、字幕のあいだ小さく）
@@ -1448,6 +1460,37 @@ function aoiTick(dt) {
   // 2026-10-07 本人「碧が登場するときにワンピースが不自然に大きく揺れる」→ 現れてしばらくは、揺れものをいまの姿勢で止めておく（そのあいだに姿がゆっくり出る）
   if (A.calm > 0) { A.calm -= dt; const sbm = vrm.springBoneManager; sbm?.setInitState?.(); sbm?.reset?.(); }
   if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); }
+}
+// 2026-10-13：碧の体は共通の部品（AoiMotion v4）。館に固有の仕草だけを、部品が組んだ姿勢の上に重ねる。
+//   見る先＝話題の作品／抜け出た生きもの／見る人。指す＝作品の話の 2 文目。表情＝生きものが出ているあいだは笑み、手にとまった瞬間は少し大きく。
+//   重ねる仕草（2026-10-09 本人「碧が動物との触れ合いをもっと楽しそうに」のまま）：左手を差し出す → とまったら胸の前へ引き寄せる／帰るときは右手を振る／野うさぎ・鷺がそばに来たら少しかがむ
+const _amLook = new THREE.Vector3(), _amE = new THREE.Euler(), _amQ = new THREE.Quaternion();
+function amPose(name, x, y, z, w) {   // その骨を、決めた角度へ w の割合だけ寄せる
+  if (w <= .001) return; const b = vrm.humanoid.getNormalizedBoneNode(name); if (!b) return;
+  _amQ.setFromEuler(_amE.set(x, y, z)); b.quaternion.slerp(_amQ, Math.min(1, w));
+}
+function amTick(dt, wt, watching, lookWork) {
+  const live = !RM, t = performance.now() / 1000;
+  if (lookWork) AM.lookAt(_amLook.set(A.look.x, 1.5 + groundY(A.look.x, A.look.z), A.look.z));
+  else if (watching) AM.lookAt(_amLook.copy(wt.pos));
+  else AM.lookAt(null);
+  if (A.talkT < .4) A._pted = false;
+  if (live && A.look && A.point && A.talkT > .5 && !A._pted) { A._pted = true; AM.point(new THREE.Vector3(A.look.x, 1.4 + groundY(A.look.x, A.look.z), A.look.z), 2.6); }
+  if (A.gig != null && A.gig < dt * 1.5) AM.express("smile", 1, 1.6);          // とまった瞬間：小さく笑う
+  else if ((A.joy || 0) > .35 && !SP.playing) AM.express("smile", .45 + .4 * (A.land || 0), .5);   // 生きものが出ているあいだ
+  AM.update(dt, camera, { vrmUpdate: false });
+  // 館に固有の仕草（姿勢の上に重ねる）
+  const k = AM.k || 0, of = live ? clamp(A.offer || 0, 0, 1) * (1 - k) : 0, ofE = of * of * (3 - 2 * of);
+  const ld = live ? clamp(A.land || 0, 0, 1) : 0, ldE = ld * ld * (3 - 2 * ld), cr = Math.sin(t * 2 * Math.PI / 3.4) * .03 * ldE;
+  amPose("leftUpperArm", -.2 + .05 * ldE, -.95 - .1 * ldE, -.6 + .38 * ldE + cr, ofE);
+  amPose("leftLowerArm", 0, -.45 - .85 * ldE, 0, ofE);
+  amPose("leftHand", -.2 + .1 * ldE, 0, .02, ofE);
+  const wv = live ? clamp(A.wave || 0, 0, 1) : 0, wvE = wv * wv * (3 - 2 * wv), wvO = Math.sin(t * 2 * Math.PI * 1.6);
+  amPose("rightUpperArm", -.1, .45, -.5, wvE); amPose("rightLowerArm", 0, .6 + .28 * wvO, 0, wvE); amPose("rightHand", .05, 0, .15 * wvO, wvE);
+  const ng = live ? clamp(A.nearG || 0, 0, 1) : 0;
+  if (ng > .01 || ldE > .01) { const sp = vrm.humanoid.getNormalizedBoneNode("spine"), ch = vrm.humanoid.getNormalizedBoneNode("chest");
+    if (sp) sp.quaternion.multiply(_amQ.setFromEuler(_amE.set(.1 * ng + .05 * ldE * ofE, 0, 0))); if (ch) ch.quaternion.multiply(_amQ.setFromEuler(_amE.set(.04 * ldE * ofE, 0, 0))); }
+  vrm.update(dt); AM.afterVrmUpdate(dt);
 }
 let aoiMats = null;
 function aoiOpacity(o) {
