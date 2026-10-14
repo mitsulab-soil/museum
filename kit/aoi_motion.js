@@ -336,7 +336,8 @@ export function softenSkin(vrm) {
     if (/CLOTH/i.test(m.name) && m.emissive && !m.userData.aoiEm) { m.userData.aoiEm = true; m.emissive.multiplyScalar(.6); n++; }
     if (/SKIN/i.test(m.name) && !m.isOutline && m.shadeColorFactor) { m.shadeColorFactor.setRGB(.95, .82, .77, THREE.SRGBColorSpace); if (m.shadingToonyFactor != null) m.shadingToonyFactor = Math.min(m.shadingToonyFactor, .74);
       if (m.parametricRimColorFactor) { m.parametricRimColorFactor.setRGB(.1, .04, .03, THREE.SRGBColorSpace); m.parametricRimFresnelPowerFactor = 3.2; if (m.parametricRimLiftFactor != null) m.parametricRimLiftFactor = 0; } m.needsUpdate = true; n++; }
-    if (/hair/i.test(m.name) && !m.isOutline && m.alphaTest > 0 && !m.transparent) { m.alphaToCoverage = true; m.needsUpdate = true; n++; } } });
+    // v5.5：髪の alphaToCoverage はやめた（three の版によっては MToon のシェーダーで 'diffuseColor' : undeclared identifier になり、髪の材質が組み立てられなかった＝HP の公開版で見つかった）
+    } });
   return n;
 }
 
