@@ -1,4 +1,6 @@
-/* 碧のローブの裾を、布のように揺らす ── aoi_robe.js（2026-10-13・v2 2026-10-14）
+/* 碧のローブの裾を、布のように揺らす ── aoi_robe.js（2026-10-13・v2 2026-10-14・v2.1 同日）
+   v2.1（11 人「後ろから見た裾が硬い」）：裾の下の段ほど戻る力を弱め（下 3 段 2〜3 割）、速さが変わるときの慣性を 7 割→7 割 8 分に。
+   歩くときのなびきを、進む向きの後ろ側の布ほど大きく（後ろの裾が遅れて揺れる。前の裾は脚に押されるので小さめのまま）。
    v2（11 人「裾が硬い円すいのまま動かず、すべって見える」「裾の割れ目の下端に黒いくさび」）：布の行き先を、脚の芯の前後・左右のずれに合わせて寄せる
    （前へ出た脚は布の前を、後ろへ残った脚は布の後ろを。裾ほど多く）。歩くと裾が少し後ろへなびく。となりの鎖とのずれをならす（とがった張り出しにしない）。
    裾ほど少しやわらかく。前は当たってから押し出すだけで、脚が布の面を突き抜け、黒い靴・足首が裾から刺さったように見えていた。API は同じ。
@@ -130,12 +132,13 @@ export class AoiRobe {
       this.legAx.forEach((L, li) => { const c = L.js.map((b, i) => b.getWorldPosition((this._lw ||= [0, 1, 2, 3, 4, 5].map(() => new THREE.Vector3()))[li * 3 + i]));
         for (let j = 1; j < M; j++) { const [seg, t, rp] = L.at[j], o = this._legNow[li][j];
           o.lerpVectors(c[seg], c[seg + 1], t).sub(_hr.copy(rp).applyMatrix4(Hw)); o.y = 0; const l = o.length(); if (l > lim) o.multiplyScalar(lim / l); } });
+      const hvl = hv ? Math.hypot(hv.x, hv.z) : 0;
       for (let j = 1; j < M; j++) { const f = j / (M - 1), gj = this.legFollow * f * f * (3 - 2 * f), tr = .075 * Math.pow(f, 1.5);
         for (let a = 0; a < N; a++) { const s = Math.sin(a / N * 2 * Math.PI), out = this._out[a], T = this.tg[a][j];
           this.legAx.forEach((L, li) => { D.copy(this._legNow[li][j]); const l = D.length(); if (l < 1e-5) return;
             const sideW = clamp(.5 + .95 * L.side * s, 0, 1), dd = out.dot(dn.copy(D).multiplyScalar(1 / l)), push = clamp((dd + .25) / .85, 0, 1);
             T.addScaledVector(D, gj * sideW * (.22 + .78 * push * push * (3 - 2 * push))); });
-          if (hv) T.addScaledVector(hv, -tr); } }
+          if (hv) T.addScaledVector(hv, -tr * (1 + (hvl > .05 ? .6 * clamp(-out.dot(hv) / hvl, 0, 1) : 0))); } }   // v2.1：進む向きの後ろ側の布ほど、遅れてなびく
     }
   }
   reset() { if (!this.ok) return; this.hips.updateWorldMatrix(true, false); this._hv?.set(0, 0, 0); this._hpPrev = null; this._targets(); for (let a = 0; a < this.N; a++) for (let j = 0; j < this.M; j++) { this.p[a][j].copy(this.tg[a][j]); this.pp[a][j].set(0, 0, 0); this.dT[a][j].set(0, 0, 0); this.t0[a][j].copy(this.tg[a][j]); } this._pose(); }
@@ -159,7 +162,7 @@ export class AoiRobe {
     const n = dt > 1 / 50 ? 2 : 1, h = dt / n;
     // 布は「腰といっしょに動く」のが基本。速さが変わるとき（歩き出し・止まる・向きを変える）だけ、遅れて揺れる（慣性の 6 割）
     // v2：裾ほど少しやわらかく（脚に寄せた行き先へ遅れてついていき、歩みごとに揺れる）。慣性 6 割 → 7 割
-    const K = [1, .17, .1, .07, .055, .045, .04, .035], damp = Math.exp(-2.6 * h), inert = .7, g = -.8 * sc * h * h;
+    const K = [1, .17, .1, .066, .047, .036, .03, .026], damp = Math.exp(-2.6 * h), inert = .78, g = -.8 * sc * h * h;   // v2.1：裾ほどさらにやわらかく・慣性 7 割 8 分
     const wx = this.wind * .25 * sc * h * h * Math.sin(this.t * .7), wz = this.wind * .2 * sc * h * h * Math.sin(this.t * .43 + 1);
     const T = _v[0], o = _v[1];
     for (let s = 0; s < n; s++) {
@@ -253,6 +256,7 @@ export function hideCoveredLegs(vrm, { keep = .35, match = /skin|body/i, skip = 
   const H = vrm?.humanoid; if (!H) return 0; const raw = n => H.getRawBoneNode(n);
   const hips = raw("hips"), feet = [raw("leftFoot"), raw("rightFoot")], legs = new Set(["leftUpperLeg", "rightUpperLeg", "leftLowerLeg", "rightLowerLeg"].map(n => raw(n)).filter(Boolean));
   if (!hips || !feet[0] || !legs.size) return 0;
+  if (vrm.__aoiLegHid != null) return vrm.__aoiLegHid;   // v2.1：二度めは何もしない（AoiMotion が先に畳み、アプリがもう一度呼んでも同じ）
   let n = 0; const v = new THREE.Vector3(), m = new THREE.Matrix4();
   vrm.scene.traverse(o => {
     if (!o.isSkinnedMesh) return; const names = [].concat(o.material).map(x => x?.name ?? "").join(" ");
@@ -278,5 +282,5 @@ export function hideCoveredLegs(vrm, { keep = .35, match = /skin|body/i, skip = 
     }
     if (c) { P.needsUpdate = true; SI.needsUpdate = true; SW.needsUpdate = true; G.computeBoundingSphere(); n += c; }
   });
-  return n;
+  vrm.__aoiLegHid = n; return n;
 }

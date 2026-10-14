@@ -1344,7 +1344,7 @@ async function loadAoi() {
     v.scene.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)) { if (!m || !m.map || !m.emissive || m.userData?.aoiOverlay) continue; try { if (!m.emissiveMap) m.emissiveMap = m.map; m.emissive.setRGB(.2, .2, .2); m.needsUpdate = true; } catch (e) {} } });
     A.springs = (v.springBoneManager?.joints ? [...v.springBoneManager.joints] : []).map(j => ({ j, g: j.settings.gravityDir.clone(), p: j.settings.gravityPower }));
     // 2026-10-13：碧の体・顔・口・まばたき・揺れもの・裾は共通の部品（AoiMotion v4）。館に固有の仕草（手を差し出す・とまったら引き寄せる・手を振る・かがむ）だけを上に重ねる
-    try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY }); A.springs = null; }
+    try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY, faceLight: .55 }); A.springs = null; }
     catch (e) { console.warn("AoiMotion を使えませんでした（館の動きで続けます）：", e?.message ?? e); AM = null; }
     aoiJump();
     window.__aoi = { vrm, aoi, A };
