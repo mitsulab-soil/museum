@@ -1,4 +1,7 @@
-/* 碧のローブの裾を、布のように揺らす ── aoi_robe.js（2026-10-13）
+/* 碧のローブの裾を、布のように揺らす ── aoi_robe.js（2026-10-13・v2 2026-10-14）
+   v2（11 人「裾が硬い円すいのまま動かず、すべって見える」「裾の割れ目の下端に黒いくさび」）：布の行き先を、脚の芯の前後・左右のずれに合わせて寄せる
+   （前へ出た脚は布の前を、後ろへ残った脚は布の後ろを。裾ほど多く）。歩くと裾が少し後ろへなびく。となりの鎖とのずれをならす（とがった張り出しにしない）。
+   裾ほど少しやわらかく。前は当たってから押し出すだけで、脚が布の面を突き抜け、黒い靴・足首が裾から刺さったように見えていた。API は同じ。
    困っていたこと：VRoid の書き出しでは、ローブの腰から下が脚の骨（太もも・すね）に直に付いていて、歩くと脚の形のまま
    三角に張り出していた（11 人の第 1〜5 回で 9 人が指摘）。モデルの .vrm はさわらずに、読み込んだあとで、ここで直す。
 
@@ -18,7 +21,7 @@ const _hp = new THREE.Vector3(), _hs = new THREE.Vector3(), _hf = new THREE.Vect
 
 export class AoiRobe {
   constructor(vrm, { chains = 24, levels = 8, wind = .4, match = /tops|onepiece|skirt|coat|bottoms|dress|robe/i } = {}) {
-    this._floor = [.074, .058, .074, .058];   // v4：脚の表面＋布の厚み（m・腰の大きさ 1 のとき）。太もも・すね・太もも・すね
+    this._floor = [.074, .064, .074, .064];   // v4：脚の表面＋布の厚み（m・腰の大きさ 1 のとき）。太もも・すね・太もも・すね
     this.vrm = vrm; this.N = chains; this.M = levels; this.wind = wind; this.ok = false; this.t = 0;
     const H = vrm.humanoid, raw = n => H.getRawBoneNode(n);
     this.hips = raw("hips"); if (!this.hips) return;
@@ -92,6 +95,21 @@ export class AoiRobe {
     const V = () => this.rest.map(r => r.map(() => new THREE.Vector3())); this.t0 = V(); this.dT = V(); this._tb = V();   // pp＝前のこまの「静止の位置からのずれ」
     this.len = this.rest.map(r => r.slice(1).map((p, j) => p.distanceTo(r[j])));
     this.ring = this.rest.map((r, a) => r.map((p, j) => p.distanceTo(this.rest[(a + 1) % N][j])));
+    // v2（2026-10-14 11 人「裾が硬い円すいのまま動かず、すべって見える」「裾の割れ目の下端に黒いくさび」）：脚の芯の線の静止の位置（腰から見た・鎖の点と同じ座標）。
+    // 鎖の段ごとに、その高さの脚の芯の点（太もも→ひざ→足首の折れ線の上の位置）を覚えておく。毎こま、いまの脚の同じ点との差（脚が前後・左右へ出たぶん）だけ、
+    // 布の行き先を脚のほうへ寄せる（前へ出た脚は布の前を押し、後ろへ残った脚は布の後ろを引く）。当たってから押し出すだけだと、布は円すいのまま動かず、
+    // 脚が布の面を突き抜けて黒い靴・足首が裾から刺さったように見えていた（氷川道中は当たりの半径を 6 割にしている）。
+    { const restOf = b => { const k = bones.indexOf(b); return k < 0 ? null : new THREE.Vector3().applyMatrix4(_m.copy(sk.boneInverses[k]).invert()).applyMatrix4(sk.boneInverses[hi]); };
+      this.legAx = [[raw("leftUpperLeg"), raw("leftLowerLeg"), raw("leftFoot")], [raw("rightUpperLeg"), raw("rightLowerLeg"), raw("rightFoot")]].map(js => {
+        const rp = js.map(restOf); if (rp.some(p => !p) || js.some(b => !b)) return null;
+        const at = []; for (let j = 0; j < M; j++) { const y = y0 - dy * j; let seg = 0, t = 0;
+          if (y >= rp[0].y) { seg = 0; t = 0; } else if (y >= rp[1].y) { seg = 0; t = (rp[0].y - y) / ((rp[0].y - rp[1].y) || 1); } else { seg = 1; t = clamp((rp[1].y - y) / ((rp[1].y - rp[2].y) || 1), 0, 1); }
+          at.push([seg, t, new THREE.Vector3().lerpVectors(rp[seg], rp[seg + 1], t)]); }
+        return { js, rp, at, side: rp[0].x >= cx ? 1 : -1 }; }).filter(Boolean);
+      this._legNow = this.legAx.map(() => [...Array(M)].map(() => new THREE.Vector3()));
+      this.legFollow = .85;   // 脚のずれを、布の行き先にどれだけ移すか（裾で最大）
+    }
+    this._hv = new THREE.Vector3(); this._hpPrev = null;   // 腰の水平の速さ（歩くとき、裾が少し後ろへなびく）
     this.ok = true; this.count = sel.length; this.reset();
     // 静止の形で、布の点と脚の芯との距離を測っておく（静止で脚に近い所は、その距離までしか押し出さない＝立っているだけでふくらまない）
     this._capsNow(); this.rr = this.p.map(row => row.map(p => this._caps.map(([A, B]) => { const ab = _v[2].subVectors(B, A), t = clamp(_v[3].subVectors(p, A).dot(ab) / (ab.lengthSq() || 1e-9), 0, 1); return _v[4].copy(A).addScaledVector(ab, t).distanceTo(p) / (this.hips.getWorldScale(_v[5]).x || 1); })));   // 腰の大きさで割って持つ
@@ -105,15 +123,34 @@ export class AoiRobe {
     for (let a = 0; a < this.N; a++) { const th = a / this.N * 2 * Math.PI; this._out[a].set(Math.sin(th), 0, Math.cos(th)).applyQuaternion(_hy); }
     for (let j = 0; j < this.M; j++) { const w = 1 - .8 * j / (this.M - 1); _hj.copy(_hy).slerp(hq, w);
       for (let a = 0; a < this.N; a++) this.tg[a][j].copy(this.rest[a][j]).sub(this.rest[a][0]).multiplyScalar(sc).applyQuaternion(_hj).add(_hr.copy(this.rest[a][0]).applyMatrix4(Hw)); }
+    // v2：脚に合わせて布の行き先を寄せる（上の legAx の説明）。その高さの脚の芯が、静止の位置からどれだけ水平に出たか（D）を、
+    // 脚の側の布ほど・脚が向かう側の布ほど多く移す。裾ほど多く、腰の近くは動かさない。歩くときは裾が少し後ろへなびく（空気）
+    if (this.legAx?.length && this.legFollow > 0) {
+      const N = this.N, M = this.M, lim = .32 * sc, hv = this._hv, D = _v[6], dn = _v[7];
+      this.legAx.forEach((L, li) => { const c = L.js.map((b, i) => b.getWorldPosition((this._lw ||= [0, 1, 2, 3, 4, 5].map(() => new THREE.Vector3()))[li * 3 + i]));
+        for (let j = 1; j < M; j++) { const [seg, t, rp] = L.at[j], o = this._legNow[li][j];
+          o.lerpVectors(c[seg], c[seg + 1], t).sub(_hr.copy(rp).applyMatrix4(Hw)); o.y = 0; const l = o.length(); if (l > lim) o.multiplyScalar(lim / l); } });
+      for (let j = 1; j < M; j++) { const f = j / (M - 1), gj = this.legFollow * f * f * (3 - 2 * f), tr = .075 * Math.pow(f, 1.5);
+        for (let a = 0; a < N; a++) { const s = Math.sin(a / N * 2 * Math.PI), out = this._out[a], T = this.tg[a][j];
+          this.legAx.forEach((L, li) => { D.copy(this._legNow[li][j]); const l = D.length(); if (l < 1e-5) return;
+            const sideW = clamp(.5 + .95 * L.side * s, 0, 1), dd = out.dot(dn.copy(D).multiplyScalar(1 / l)), push = clamp((dd + .25) / .85, 0, 1);
+            T.addScaledVector(D, gj * sideW * (.22 + .78 * push * push * (3 - 2 * push))); });
+          if (hv) T.addScaledVector(hv, -tr); } }
+    }
   }
-  reset() { if (!this.ok) return; this.hips.updateWorldMatrix(true, false); this._targets(); for (let a = 0; a < this.N; a++) for (let j = 0; j < this.M; j++) { this.p[a][j].copy(this.tg[a][j]); this.pp[a][j].set(0, 0, 0); this.dT[a][j].set(0, 0, 0); this.t0[a][j].copy(this.tg[a][j]); } this._pose(); }
+  reset() { if (!this.ok) return; this.hips.updateWorldMatrix(true, false); this._hv?.set(0, 0, 0); this._hpPrev = null; this._targets(); for (let a = 0; a < this.N; a++) for (let j = 0; j < this.M; j++) { this.p[a][j].copy(this.tg[a][j]); this.pp[a][j].set(0, 0, 0); this.dT[a][j].set(0, 0, 0); this.t0[a][j].copy(this.tg[a][j]); } this._pose(); }
   // vrm.update(dt) のあとに呼ぶ（生の骨の位置が決まってから）。groundY＝床の高さ（世界）
   update(dt, { groundY = null, live = true } = {}) {
     if (!this.ok) return; dt = Math.min(dt, .05); if (dt <= 0) return; this.t += dt;
     const N = this.N, M = this.M;
     // 前のこまの静止の位置（この区間で、腰がどれだけ動いたか）
     for (let a = 0; a < N; a++) for (let j = 0; j < M; j++) this.t0[a][j].copy(this.tg[a][j]);
-    this.hips.updateWorldMatrix(true, false); this._targets();
+    this.hips.updateWorldMatrix(true, false);
+    { const hp = _v[0].setFromMatrixPosition(this.hips.matrixWorld);   // v2：腰の水平の速さ（なめらかに）。とんだとき（1 こまで 0.5 m 超）は数えない
+      if (this._hpPrev) { const vx = (hp.x - this._hpPrev.x) / dt, vz = (hp.z - this._hpPrev.z) / dt, ok = Math.hypot(vx, vz) * dt < .5, a = 1 - Math.exp(-6 * dt);
+        if (ok) { this._hv.x += (vx - this._hv.x) * a; this._hv.z += (vz - this._hv.z) * a; } else this._hv.set(0, 0, 0); }
+      (this._hpPrev ||= new THREE.Vector3()).copy(hp); this._hv.y = 0; const m = this._hv.length(), mx = 2.2 * (this.hips.getWorldScale(_v[1]).x || 1); if (m > mx) this._hv.multiplyScalar(mx / m); }
+    this._targets();
     const sc = this.hips.getWorldScale(_v[0]).x || 1;
     if (!live) { this.reset(); return; }
     // 脚のカプセル（太もも・すねの太さに布の厚み）
@@ -121,7 +158,8 @@ export class AoiRobe {
     const caps = this._capsNow();
     const n = dt > 1 / 50 ? 2 : 1, h = dt / n;
     // 布は「腰といっしょに動く」のが基本。速さが変わるとき（歩き出し・止まる・向きを変える）だけ、遅れて揺れる（慣性の 6 割）
-    const K = [1, .2, .12, .08, .06, .05, .045, .04], damp = Math.exp(-3 * h), inert = .6, g = -.8 * sc * h * h;
+    // v2：裾ほど少しやわらかく（脚に寄せた行き先へ遅れてついていき、歩みごとに揺れる）。慣性 6 割 → 7 割
+    const K = [1, .17, .1, .07, .055, .045, .04, .035], damp = Math.exp(-2.6 * h), inert = .7, g = -.8 * sc * h * h;
     const wx = this.wind * .25 * sc * h * h * Math.sin(this.t * .7), wz = this.wind * .2 * sc * h * h * Math.sin(this.t * .43 + 1);
     const T = _v[0], o = _v[1];
     for (let s = 0; s < n; s++) {
@@ -155,6 +193,11 @@ export class AoiRobe {
         // 床
         if (groundY != null) for (let a = 0; a < N; a++) { const p = this.p[a][M - 1]; if (p.y < groundY + .01 * sc) p.y = groundY + .01 * sc; }
       }
+      // v2：となりの鎖とのずれをならす（一本の鎖だけが脚に押されて、とがった三角の張り出し＝テントにならない。布は面でつながっている）
+      { const sm = this._sm ||= [...Array(N)].map(() => new THREE.Vector3());
+        for (let j = 2; j < M; j++) { for (let a = 0; a < N; a++) sm[a].subVectors(this.p[a][j], this._tb[a][j]);
+          for (let a = 0; a < N; a++) { const l = sm[(a + N - 1) % N], r = sm[(a + 1) % N], c = sm[a];
+            this.p[a][j].x += ((l.x + r.x) * .5 - c.x) * .22; this.p[a][j].z += ((l.z + r.z) * .5 - c.z) * .22; } } }
       // 直したぶんは、ずれの速さに入れすぎない（当たって跳ね返らないよう半分だけ）
       for (let a = 0; a < N; a++) for (let j = 1; j < M; j++) { const cur = _v[5].subVectors(this.p[a][j], this._tb[a][j]); this.pp[a][j].lerp(cur, .5); }
     }
