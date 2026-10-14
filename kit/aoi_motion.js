@@ -1,4 +1,6 @@
-/* 碧（依代）の自然な動きと表情 ── aoi_motion.js（v5・2026-10-13）
+/* 碧（依代）の自然な動きと表情 ── aoi_motion.js（v5.2・2026-10-14）
+   v5.2（2026-10-14・T ポーズを見せない）：relaxPose(vrm) を足した（腕を下ろした休めの形。読み込んだ直後・動きの部品が届く前に呼ぶ）。
+   AoiMotion は作った時点でこの形にする（最初の update の前に描かれても T ポーズにならない）。API は同じ（足したものは任意）。
    v5（2026-10-13 本人「碧は全体のキモ」）：
    - 話の中身に合う身ぶり（会話の身ぶりの研究：McNeill 1992 の四つの型＝拍子・指し示し・形をなぞる・たとえ／Kendon 1980・2004 の
      準備→打つ→止める→戻す。打つ瞬間は、その語の頭か少し前）。アプリは一行ごとに印を渡せる：
@@ -183,6 +185,14 @@ export const EMOTIONS = {
 // VRoid の顔には「下まぶただけ上がる」「頬が上がる」形がない。笑うと頬が上がり下まぶたが押し上げられる（目の周りの筋・デュシェンヌの笑み）。
 // 1) AoiLidLow：目を細める形（Fcl_EYE_Fun）のうち、目の中心より下の動きだけを取り出す（上まぶたは下ろさない＝目を閉じたように見えない）。
 // 2) AoiCheek：目の下・外寄りの頬を、ごく小さく（最大 1.6 mm）上と前へふくらませる。法線は変えない（陰の付き方を変えない＝不気味にしない）。
+// v5.2（2026-10-14）：腕を下ろした休めの形（AoiMotion の手続きの休めの形と同じ値）。読み込んだ直後の VRM はひな形の姿勢＝両腕を真横に広げた T ポーズで、
+// 遅い回線・遅い端末では動きの部品が届くまで数秒そのまま見える（テストプレー 10-14 夜「壊れた人形」「不気味」）。シーンに置く前に、これを一度呼ぶ。
+export function relaxPose(vrm) {
+  const N = n => vrm.humanoid.getNormalizedBoneNode(n);
+  for (const sd of ["left", "right"]) { const sg = sd === "left" ? 1 : -1;
+    N(sd + "UpperArm")?.rotation.set(-.06, sg * .06, sg * -1.3); N(sd + "LowerArm")?.rotation.set(0, sg * -.3, 0); N(sd + "Hand")?.rotation.set(.04, sg * .05, sg * .1); }
+  vrm.humanoid.update(); vrm.scene.updateMatrixWorld(true);
+}
 export function addFaceMorphs(vrm) {
   const ms = []; vrm.scene.traverse(o => { if (o.isMesh && o.morphTargetDictionary?.Fcl_EYE_Fun != null && o.morphTargetDictionary.AoiLidLow == null) ms.push(o); });
   if (!ms.length) return false;
@@ -348,6 +358,9 @@ export class AoiMotion {
     else if (mocap) { const url = mocap === "auto" ? new URL("./aoi_mocap.json", import.meta.url).href : mocap;
       (_mocapShared ||= {})[url] ||= loadMocap(url).catch(e => { console.warn("aoi_mocap", e.message || e); return null; });
       this.mcReady = _mocapShared[url].then(lib => { use(lib); return lib; }); }
+    // v5.2（2026-10-14）：作ったその時点で、腕を下ろした休めの形にしておく。最初の update の前に一こま描かれても、両腕を真横に広げた形（T ポーズ）を見せない。
+    // 記録（aoi_mocap.json）は届いてから mcW で 1 秒あまりかけて混ざる（届くまでは手続きの休めの形で、腕は脇に下りている）
+    try { relaxPose(vrm); } catch (e) { console.warn("relaxPose", e); }
   }
   _foot(side) { return { side, p: new THREE.Vector3(), yaw: 0, swing: null, heel: 0 }; }
   _home(f, out, lead = 0) {   // その足の置き場所（体の向き・左右の幅・少し外へ開いたつま先）
