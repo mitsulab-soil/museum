@@ -480,7 +480,8 @@ export class AoiMotion {
     let sx = f.side * this.halfW * this.sc * 1.05, fz = 0; const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
     // v5.5：立っているとき、重心を置いていない足（遊脚）は少し前（または横へ戻す）・少し外へ（コントラポスト）。量は置きなおすたびに変える
     { const fr = Math.max(0, -(this._cpc || 0) * f.side) * (1 - this.k); if (fr > .01 && !lead) { fz = (this._cpFz ?? .05) * fr * this.sc; sx += f.side * .014 * fr * this.sc; } }
-    const x = this.pos.x + sx * c + fz * s + this.vel.x * lead, z = this.pos.z - sx * s + fz * c + this.vel.z * lead;
+    const predict = this.driven && this._driveStopped ? 0 : lead;
+    const x = this.pos.x + sx * c + fz * s + this.vel.x * predict, z = this.pos.z - sx * s + fz * c + this.vel.z * predict;
     out.set(x, (this.groundAt ? this.groundAt(x, z) : this.pos.y) + this.ankleH * this.sc, z);
     return out;
   }
@@ -634,7 +635,7 @@ export class AoiMotion {
         else if (mt.userData.aoiDith) { u.value = 1; mt.userData.aoiCutU.value = 0; mt.blending = mt.userData.aoiBl; mt.depthWrite = mt.userData.aoiDW; mt.userData.aoiDith = false; } else u.value = 1; }; });
   }
   update(dt, camera, { vrmUpdate = true } = {}) {
-    this._qTick(dt); dt = Math.min(dt, .05); if (dt <= 0) return; this.t += dt; this._fid++; const S = this.s;
+    this._elapsed = Math.min(Math.max(dt, 0), .25); this._qTick(dt); dt = Math.min(dt, .05); if (dt <= 0) return; this.t += dt; this._fid++; const S = this.s;
     if (this._fadingT != null && this.t - this._fadingT < .35 && this.blink.t < 0) this.blink.next = Math.max(this.blink.next, .35);   // v5：現れているあいだと直後はまばたきしない（目が線だけの一こまにしない）
     this._locomotion(dt, camera);
     this._apply();
@@ -671,7 +672,8 @@ export class AoiMotion {
       for (let i = 0; i < n; i++) { const m0 = Math.hypot(this.vel.x, this.vel.z); this.vel.x += (w * w * (this.goal.x - P.x) - 2 * w * this.vel.x) * h; this.vel.z += (w * w * (this.goal.z - P.z) - 2 * w * this.vel.z) * h; const m = Math.hypot(this.vel.x, this.vel.z), cap = Math.min(.85, m0 + 1.1 * h); if (m > cap) this.vel.multiplyScalar(cap / m); P.x += this.vel.x * h; P.z += this.vel.z * h; }
       if (P.distanceTo(this.goal) < .03 && this.vel.length() < .05) { this.goal = null; this.vel.set(0, 0, 0); }
     } else if (this.driven) {
-      const vx = (P.x - this._last.x) / dt, vz = (P.z - this._last.z) / dt, a = 1 - Math.exp(-10 * dt);
+      const elapsed = this._elapsed || dt, vx = (P.x - this._last.x) / elapsed, vz = (P.z - this._last.z) / elapsed, a = 1 - Math.exp(-18 * dt);
+      this._driveStopped = Math.hypot(vx, vz) < .025;
       this.vel.x += (vx - this.vel.x) * a; this.vel.z += (vz - this.vel.z) * a;
     } else this.vel.multiplyScalar(Math.exp(-8 * dt));
     if (Math.hypot(P.x - this._last.x, P.z - this._last.z) > 1.6) { this._last.copy(P); this._apply(); this._placeFeet(); this._robeReset = true; this._sprReset = true; this._turn = null; this.calm = Math.max(this.calm, .3); this.stat.jump++; }   // とんだときは足をそろえ直す（v5.3：髪・裾のばねも新しい位置の休みの形へ）
@@ -686,7 +688,7 @@ export class AoiMotion {
     else if (this.faceViewer && camera) { const tc = this._toCam(camera); if (Math.abs(wrapA(tc - this.yaw)) > .5 || this.speaking || this.listening) want = tc; }
     const d = wrapA(want - this.yaw), rate = this.speed > .25 ? 2.6 : 1.5;
     // v5：止まっているときの向きかえは、目と頭→胴→足の順（Anastasopoulos ら 2009・Khobkhun ら 2022）。角度が大きいほど歩数と歩幅が増える
-    const standing = this.speed < .2 && !this.goal && !this.driven && this.k < .35;
+    const standing = this.speed < .2 && !this.goal && this.k < .35;
     let tr = this._turn;
     if (tr && (!standing || !this.live)) { tr = this._turn = null; for (const f of Object.values(this.feet)) if (f.swing?.fix) { f.swing.fix = false; } }   // v5.4：向きかえの途中で歩き出したら、振っている一歩も歩きの一歩として着く先を決め直す
     if (standing && this.live) {
@@ -811,8 +813,8 @@ export class AoiMotion {
     // v4：歩く調子（1 秒の歩数）を速さに合わせる（人は速いほど歩数も歩幅も増える。秒速 0.85 m で約 1.75 歩・歩幅 0.49 m、1.3 m で約 1.9 歩）。
     // 一歩＝振る 8 割＋両足が着いている 2 割（歩きの一周期の 4 割が振り・1 割ずつ両足）。小さな碧に合わせ、身長の比で少し縮める
     // v5.3：速いとき（毎秒 1.2 m より上）は歩数をさらに増やし、歩幅が脚の届く長さを超えない（前は 1 秒 2.1 歩で頭打ち＝毎秒 2 m を超えると脚が届かず、腰が急に沈んで髪が跳ねた）
-    const vr = this.speed / Math.max(.5, this.sc), cad = clamp(1.42 + .38 * vr + .3 * Math.max(0, vr - 1.2), 1.5, 2.5), Tst = 1 / cad;
-    const swingT = moving ? .78 * Tst : .5, ds = moving ? .22 * Tst * (1 - .7 * clamp(vr - 1, 0, 1)) : .07, landLead = moving ? .5 * Tst : 0;
+    const vr = this.speed / Math.max(.5, this.sc), cad = clamp(1.65 + .42 * vr + .3 * Math.max(0, vr - 1.2), 1.7, 2.6), Tst = 1 / cad;
+    const swingT = moving ? .78 * Tst : .5, ds = moving ? .22 * Tst * (1 - .7 * clamp(vr - 1, 0, 1)) : .07, landLead = moving ? .32 * Tst : 0;
     const swinging = F.L.swing || F.R.swing; this._ds = (this._ds || 0) - dt;
     const tr = this._turn;
     if (tr) { if (!swinging && tr.i < tr.n && tr.t >= tr.lead * .7 + tr.i * tr.T / tr.n) this._turnStep(tr); }   // v5：向きかえの最中は、決めた順に踏む（ほかの踏みかえはしない）
@@ -820,7 +822,7 @@ export class AoiMotion {
       let best = null, bestE = 0; const eo = {};
       for (const key of ["L", "R"]) { const f = F[key]; this._home(f, home, moving ? swingT + landLead : 0); const e = Math.hypot(home.x - f.p.x, home.z - f.p.z), ye = Math.abs(wrapA(this.yaw + f.side * .1 - f.yaw)); eo[key] = e; const sc = e + ye * .25 + (key === this.lastStep ? -.04 : 0); if (sc > bestE) { bestE = sc; best = key; } }
       // v5.4：歩いているあいだは左右を必ず交互に（同じ足を二度続けて出すと、もう片方の足が置き去りになり、脚が前後に開いて腰が沈んでいた）
-      if (moving && best === this.lastStep) { const o = best === "L" ? "R" : "L"; if (eo[o] > .04 * this.sc && eo[best] - eo[o] < .18 * this.sc) { best = o; bestE = Math.max(bestE, eo[o] + .2); } }
+      if (moving && best === this.lastStep) { const o = best === "L" ? "R" : "L"; if (eo[o] > .04 * this.sc) { best = o; bestE = Math.max(bestE, eo[o] + .2); } }
       const th = moving ? .1 : .16;
       if (best && bestE > th) { const f = F[best]; f.swing = { from: f.p.clone(), fy: f.yaw, u: 0, T: swingT }; this.lastStep = best; }
       // v5.5：重心を反対の足へ移し終えたら、遊脚を半歩だけ置きなおす（4 回に 3 回）。重心の足がすでに前なら、遊脚は横へ戻す（両足とも前へずれていかない）
@@ -834,7 +836,7 @@ export class AoiMotion {
       const f = F[key], sw = f.swing; if (!sw) continue;
       if (moving && !sw.fix && sw.T > swingT) sw.T -= (sw.T - swingT) * Math.min(1, 12 * dt);   // v5.3：歩き出しで速くなっていくとき、振っている足も今の調子へ（遅い振りのまま体が先へ行き、着いた足が引きずられていた）
       // v5.4：立っている足が体の後ろへ離れすぎたら（歩き出しで速さが上がっていくとき）、振っている足を早めに着く（腰を沈めて脚を前後に開かない）
-      { const st = F[key === "L" ? "R" : "L"]; let hurry = 0; if (moving && !sw.fix && !st.swing) { const bh = Math.hypot(st.p.x - this.pos.x, st.p.z - this.pos.z) / this.sc; hurry = clamp((bh - .24) / .1, 0, 1.6); }
+      { const st = F[key === "L" ? "R" : "L"]; let hurry = 0; if (moving && !sw.fix && !st.swing) { const bh = Math.hypot(st.p.x - this.pos.x, st.p.z - this.pos.z) / this.sc; hurry = clamp((bh - .32) / .15, 0, .35); }
         sw.u += dt / sw.T * (1 + hurry); this._hurry = hurry > .2; }
       const u = clamp(sw.u, 0, 1);
       this._home(f, home, moving ? (1 - u) * sw.T + landLead : 0);

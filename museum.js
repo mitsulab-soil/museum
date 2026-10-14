@@ -1396,7 +1396,7 @@ function aoiTick(dt) {
   if (!A.wp || A.repath <= 0 || !A.goalKey || A.goalKey.distanceTo(goal) > .8) { A.wp = route(goal, false, A.pos).map(p => p.setY(0)); A.goalKey = goal.clone(); A.repath = .7; }
   while (A.wp.length > 1 && Math.hypot(A.wp[0].x - A.pos.x, A.wp[0].z - A.pos.z) < .7) A.wp.shift();
   const tgt = A.wp[0] || goal;
-  const w = A.goal ? 4.2 : 3.4, n = Math.max(1, Math.ceil(dt / .02)), h = dt / n, vmax = 2.0;   // 2026-10-14 本人「碧の歩き方がおかしい」：毎秒 2.6 m では歩きの脚が届かず（足と目標のずれ最大 82 cm）、すべって腰が沈み、髪が逆立っていた → 歩いて自然な毎秒 2.0 m まで（遅れたら、止まったときに追いつく）
+  const w = A.goal ? 4.2 : 3.4, n = Math.max(1, Math.ceil(dt / .02)), h = dt / n, vmax = 1.35;   // 2026-10-14 本人「碧の歩き方がおかしい」：毎秒 2.6 m では歩きの脚が届かず（足と目標のずれ最大 82 cm）、すべって腰が沈み、髪が逆立っていた → 歩行の上限を毎秒 1.35 m に設定（遅れたら、止まったときに追いつく）
   // 進めないことの見張り
   const dGoal = Math.hypot(goal.x - A.pos.x, goal.z - A.pos.z);
   if (!A.lastP) A.lastP = A.pos.clone();
@@ -1411,7 +1411,8 @@ function aoiTick(dt) {
     A.stuckT = 0; A.lastP.copy(A.pos);
   }
   for (let i = 0; i < n; i++) {
-    A.vel.x += (w * w * (tgt.x - A.pos.x) - 2 * w * A.vel.x) * h; A.vel.z += (w * w * (tgt.z - A.pos.z) - 2 * w * A.vel.z) * h;
+    const ax = w * w * (tgt.x - A.pos.x) - 2 * w * A.vel.x, az = w * w * (tgt.z - A.pos.z) - 2 * w * A.vel.z, an = Math.hypot(ax, az), ak = Math.min(1, 1.1 / Math.max(an, 1e-6));
+    A.vel.x += ax * ak * h; A.vel.z += az * ak * h;
     const m = Math.hypot(A.vel.x, A.vel.z); if (m > vmax) { A.vel.x *= vmax / m; A.vel.z *= vmax / m; }
     const nx = A.pos.x + A.vel.x * h, nz = A.pos.z + A.vel.z * h;
     if (walkable(nx, nz, 1.3) || !walkable(A.pos.x, A.pos.z, 1.3)) { A.pos.x = nx; A.pos.z = nz; } else { A.vel.multiplyScalar(.5); }
@@ -1445,7 +1446,7 @@ function aoiTick(dt) {
     let ty = 0, tp = 0;
     if (watching) { const hy = groundY(A.pos.x, A.pos.z) + 1.45, dx = wt.pos.x - A.pos.x, dz = wt.pos.z - A.pos.z; ty = clamp(wrapA(Math.atan2(dx, dz) - A.yaw), -1.15, 1.15); tp = clamp(Math.atan2(hy - wt.pos.y, Math.max(.25, Math.hypot(dx, dz))), -.45, .75); }
     const w = 4.2, n2 = Math.max(1, Math.ceil(dt / .02)), h2 = dt / n2;
-    for (let i = 0; i < n2; i++) { A.hyv = (A.hyv || 0) + (w * w * (ty - (A.hy || 0)) - 2 * w * A.hyv) * h2; A.hy = (A.hy || 0) + A.hyv * h2; A.hpv = (A.hpv || 0) + (w * w * (tp - (A.hp || 0)) - 2 * w * A.hpv) * h2; A.hp = (A.hp || 0) + A.hpv * h2; }
+    for (let i = 0; i < n2; i++) { A.hyv = (A.hyv || 0) + (w * w * (ty - (A.hy || 0)) - 2 * w * (A.hyv || 0)) * h2; A.hy = (A.hy || 0) + A.hyv * h2; A.hpv = (A.hpv || 0) + (w * w * (tp - (A.hp || 0)) - 2 * w * (A.hpv || 0)) * h2; A.hp = (A.hp || 0) + A.hpv * h2; }
   }
   if (A.gaze) { if (lookWork) A.gaze.position.set(A.look.x, 1.9 + groundY(A.look.x, A.look.z), A.look.z); else if (watching) A.gaze.position.copy(wt.pos); else A.gaze.position.copy(camera.position); }
   A.talkT += dt;
