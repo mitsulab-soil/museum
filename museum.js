@@ -1888,9 +1888,10 @@ const OTO_EARLY = new URLSearchParams(location.search).get("mode") === "oto";
 const startCue = (() => { const d = document.createElement("div"); d.id = "startCue"; d.setAttribute("aria-hidden", "true"); d.textContent = "画面を押すと、碧の案内がはじまります（音が出ます）"; document.body.appendChild(d); return d; })();
 function wake() {   // はじめて押したとき：音の仕組みを立て、碧がひとこと
   if (woke || mode !== "walk") return; woke = true; startCue.remove();
-  AUD.init(); AUD.zone(ambOf(zone.key)); $("guide").hidden = false; aoiJump();
+  AUD.init(); AUD.zone(ambOf(zone.key)); $("guide").hidden = false; const aoiStanding = aoi?.visible && A.fade >= 1; if (!aoiStanding) aoiJump();   // もう立っていれば、跳ばさない（2026-10-14）
   // 2026-10-07 本人「起動時に碧が登場するのは広間の中央に」：円堂のまん中に、見る人のほうを向いて現れる
-  if (vrm) { A.pos.set(0, 0, 1.2); A.goal = new THREE.Vector3(0, 0, 1.2); A.look = null; A.yaw = Math.atan2(me.pos.x, me.pos.z - 1.2); A.calm = 1.6; A.fade = 0; setTimeout(() => { if (A.goal && A.goal.z === 1.2) A.goal = null; }, 9000); }
+  // 2026-10-14 11 人：はじめの画面ですでに立っている碧を、押した直後に網目で出なおさせていた（しゃがんだ形に見えた）→ もう立っていれば置きなおさない
+  if (vrm && !aoiStanding) { A.pos.set(0, 0, 1.2); A.goal = new THREE.Vector3(0, 0, 1.2); A.look = null; A.yaw = Math.atan2(me.pos.x, me.pos.z - 1.2); A.calm = 1.6; A.fade = 0; setTimeout(() => { if (A.goal && A.goal.z === 1.2) A.goal = null; }, 9000); }
   if (OTO) { otoGo(0, true); return; }
   const acts = [["案内して", () => introWalk(), true], ["自分で歩く", () => { intro.tok++; freeTalk([T.idle.free]); }], ...(resumeAt && resumeOK ? [["続きから（" + rooms[region(resumeAt[0], resumeAt[1]).i].name + "）", resumeGo]] : [])];
   curActs = () => acts; talk(T.outside, acts);
