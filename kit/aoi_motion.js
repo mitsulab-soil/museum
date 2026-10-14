@@ -1,4 +1,11 @@
-/* 碧（依代）の自然な動きと表情 ── aoi_motion.js（v5.2・2026-10-14）
+/* 碧（依代）の自然な動きと表情 ── aoi_motion.js（v5.3・2026-10-14）
+   v5.3（2026-10-14 本人「氷川道中、博物館などについて、碧の歩き方や髪型がおかしいです。しっかり実装とチェックをお願いします。」）：
+   - 髪型が変わっていた：現れるあいだ（startCalm 既定 2.2 秒・アプリの calm）に毎こま setInitState() を呼び、揺れた形を「休みの形」に焼きこんでいた
+     （房ごとに 6〜52° ずれた）。いまは焼きこまず、空気の抵抗を最大にして揺れずに落ち着かせる。焼きこまれた形も、読み込んだときの形へ戻す。
+   - とんだとき（place・1.6 m 以上の飛び）は、髪・裾のばねも新しい位置の休みの形へ。新しい API：m.teleport(x, z, yaw)・m.resetSprings()・m.springGuard(dt)。
+   - vrm.update を一こま一回に（同じこまの二度めは揺れものを進めない）・dt は 0.05 秒まで・揺れものは 1/60 秒より細かく刻む（アプリが vrm.update を呼んでも同じ）。
+   - 髪・裾の守り（springGuard）：休みの形からの開き（髪は付け根 35°・その先 25°・裾 35°）と一こまの回り（髪 8°・裾 6°／60 分の 1 秒）に上限。ばねの中の状態もそろえる。
+   - 歩き：速いときは歩数を増やし、両足が着いている間を短く（1 秒 2.5 歩まで）・振っている足も今の調子へ・腰を急に沈めない（毎秒 1.2 m まで）。API は同じ（足したものは任意）。
    v5.2（2026-10-14・T ポーズを見せない）：relaxPose(vrm) を足した（腕を下ろした休めの形。読み込んだ直後・動きの部品が届く前に呼ぶ）。
    AoiMotion は作った時点でこの形にする（最初の update の前に描かれても T ポーズにならない）。API は同じ（足したものは任意）。
    v5（2026-10-13 本人「碧は全体のキモ」）：
@@ -343,7 +350,15 @@ export class AoiMotion {
     // 揺れもの
     this.springs = (vrm.springBoneManager?.joints ? [...vrm.springBoneManager.joints] : []).map(j => ({ j, g: j.settings.gravityDir.clone(), p: j.settings.gravityPower }));
     // v3：体がいつも少し動く（人の記録）ので、髪が揺れ続けて顔にかからないよう、髪の戻る力と空気の抵抗を少し強める（.vrm はさわらない）
-    for (const s of this.springs) if (/hair/i.test(s.j.bone?.name || "")) { s.j.settings.stiffness *= 1.5; s.j.settings.dragForce = Math.max(s.j.settings.dragForce, .6); }
+    // v5.3：同じ碧にもう一度 AoiMotion を作っても、強めるのは一度だけ（重ねて 1.5 倍・2.25 倍…にならない）
+    for (const s of this.springs) if (/hair/i.test(s.j.bone?.name || "") && !s.j.__aoiStiff) { s.j.__aoiStiff = 1; s.j.settings.stiffness *= 1.5; s.j.settings.dragForce = Math.max(s.j.settings.dragForce, .6); }
+    // v5.3（2026-10-14 本人「碧の歩き方や髪型がおかしい」）：髪・裾の「休みの形」（.vrm に作られた形）を覚えておく。
+    // 前は、現れるあいだ（calm）に毎こま setInitState() を呼んでいたので、そのこまの揺れた形（重さ・体の動きで遅れた形）が「休みの形」として焼きこまれ、
+    // 2.2 秒のあいだに房ごとに 6〜31° ずれて、髪型そのものが変わっていた（台で測った）。いまは休みの形へ戻す（reset）だけにし、焼きこまれた形も、ここで覚えた形へ戻す。
+    this._sprInit = this.springs.map(({ j }) => j.__aoiInit ||= { m: j._initialLocalMatrix?.clone(), q: j._initialLocalRotation?.clone(), c: j._initialLocalChildPosition?.clone(), a: j._boneAxis?.clone() });
+    this._sprReset = false; this._fid = 0; this._vuFid = -1; this.stat = { vuSkip: 0, sprReset: 0, jump: 0 };
+    // v5.3：vrm.update を一こま一回に（同じこまで二度呼ばれたら二度めは揺れものを進めない）・dt の上限・揺れものは 1/60 秒より細かく刻む（こまの遅い端末で房が跳ねない）
+    try { this._wrapVrmUpdate(); } catch (e) { console.warn("wrapVrmUpdate", e); }
     this.pointing = null; this.bowing = null; this.listening = false; this.speaking = null;
     // ローブの裾（v3）
     this.robe = null; if (robe) { try { const r = new AoiRobe(vrm, { wind: wind * .7 }); if (r.ok) this.robe = r; } catch (e) { console.warn("AoiRobe", e); } }
@@ -384,7 +399,71 @@ export class AoiMotion {
   }
 
   // ---------------------------------------------------------------- 外から呼ぶ
-  place(x, z, yaw = this.yaw) { this.pos.set(x, this.root.position.y, z); this.vel.set(0, 0, 0); this.goal = null; this.yaw = yaw; this.faceYaw = null; this._last.copy(this.pos); this._apply(); this._placeFeet(); this._robeReset = true; return this; }
+  place(x, z, yaw = this.yaw) { this.pos.set(x, this.root.position.y, z); this.vel.set(0, 0, 0); this.goal = null; this.yaw = yaw; this.faceYaw = null; this._last.copy(this.pos); this._apply(); this._placeFeet(); this._robeReset = true; this._sprReset = true; this._turn = null; this.calm = Math.max(this.calm, .3); return this; }   // v5.3：置き直したら髪・裾のばねも休みの形へ（古い位置から引っぱられて房が跳ねない）
+  // v5.3：とぶ（場面の切りかえ・ワープ）。place と同じだが、向きも即座に合わせ、揺れものを新しい位置の休みの形にする。calm 秒（既定 0.4）は揺れものを止めたまま
+  teleport(x, z, yaw = this.yaw, { calm = .4 } = {}) { this.place(x, z, yaw); this.calm = Math.max(this.calm, calm); this.k = 0; this.speed = 0; return this; }
+  // v5.3：髪・裾のばねを、いまの体の上で休みの形に戻す（アプリが碧を動かしたあと・見えなくしていたあとに呼べる）。焼きこまれた休みの形も、読み込んだときの形へ戻す
+  resetSprings() { this._sprReset = true; return this; }
+  _doSpringReset() {
+    const sb = this.vrm.springBoneManager; if (!sb) return;
+    this.root.updateMatrixWorld(true);
+    this.springs.forEach(({ j }, i) => { const z = this._sprInit[i]; if (z?.q) { j._initialLocalMatrix.copy(z.m); j._initialLocalRotation.copy(z.q); j._initialLocalChildPosition.copy(z.c); j._boneAxis.copy(z.a); } });
+    try { sb.reset(); } catch (e) { for (const { j } of this.springs) try { j.reset(); } catch {} }
+    this.vrm.scene.updateMatrixWorld(true);
+    if (this._sg) for (const s of this._sg) s.q.copy(s.j.bone.quaternion);   // 守りの「前のこま」も休みの形に（戻したことを跳ねと見ない）
+  }
+  // 揺れものを dt だけ進める（1/60 秒より細かく刻む・一度に進めるのは 0.05 秒まで）
+  // still＝現れるあいだ（calm）：空気の抵抗を最大にして、揺れずに（勢いを持たずに）落ち着く形へ寄せる。休みの形を焼きこまず、終わったときに房が跳ねない
+  _springStep(dt, still = false) {
+    const sb = this.vrm.springBoneManager; if (!sb || !(dt > 0)) return;
+    dt = Math.min(dt, .05); const n = Math.min(4, Math.max(1, Math.ceil(dt * 60 - 1e-6))), h = dt / n;
+    if (still) for (const s of this.springs) { s.dr = s.j.settings.dragForce; s.j.settings.dragForce = 1; }
+    for (let i = 0; i < n; i++) sb.update(h);
+    if (still) for (const s of this.springs) s.j.settings.dragForce = s.dr;
+    this.springGuard(dt);
+  }
+  // v5.3：髪・裾の守り。ばねを進めたあとに、房の骨ごとに ①休みの形からの開き（髪は付け根 35°・その先は一つごとに 25°・裾 35°）②一こまの回りの速さ（髪 毎秒 480°・裾 毎秒 360°）に上限を置き、
+  // ばねの中の状態（房の先の位置）も同じ形にそろえる（見た目だけ直すと、次のこまで元へ跳ね返る）。歩きの着地で体が急に沈んだこま・押し出されたこまで、
+  // 房が逆立つ・扇のように開くのを防ぐ（氷川道中の 11 人「髪が一瞬逆立つ」：毎こま 100° を超える跳ねを測った）。
+  // アプリが自分で springBoneManager.update を呼ぶとき（氷川道中）は、そのあとで m.springGuard(dt) を呼ぶ。
+  springGuard(dt = 1 / 60) {
+    const g = this._sg ||= (() => { const bs = new Set(this.springs.map(({ j }) => j.bone)); return this.springs.map(({ j }) => ({ j, hair: /hair/i.test(j.bone?.name || ""), skirt: /skirt/i.test(j.bone?.name || ""), deep: bs.has(j.bone?.parent), q: j.bone.quaternion.clone() })); })();
+    const f = Math.max(1, dt * 60), q0 = _q[4], tl = _v[7];
+    for (const s of g) {
+      if (!s.hair && !s.skirt) continue;
+      const j = s.j, b = j.bone, qi = j._initialLocalRotation; if (!b || !qi) continue;
+      const LIM = (s.hair ? (s.deep ? 25 : 35) : 35) * Math.PI / 180, DL = (s.hair ? 8 : 6) * Math.PI / 180 * f;
+      let changed = false;
+      const ad = 2 * Math.acos(Math.min(1, Math.abs(s.q.dot(b.quaternion))));
+      if (ad > DL) { q0.copy(s.q).slerp(b.quaternion, DL / ad); b.quaternion.copy(q0); changed = true; }
+      const a = 2 * Math.acos(Math.min(1, Math.abs(qi.dot(b.quaternion))));
+      if (a > LIM) { q0.copy(qi).slerp(b.quaternion, LIM / a); b.quaternion.copy(q0); changed = true; }
+      if (changed) {
+        b.updateMatrix(); if (b.parent) b.matrixWorld.multiplyMatrices(b.parent.matrixWorld, b.matrix); else b.matrixWorld.copy(b.matrix);
+        for (const c of b.children) c.updateMatrixWorld(true);
+        b.localToWorld(tl.copy(j._initialLocalChildPosition)); const w2c = j._getMatrixWorldToCenter?.(); if (w2c) tl.applyMatrix4(w2c);
+        j._currentTail?.copy(tl); j._prevTail?.lerp(tl, .7);   // 速さもほぼ消す（跳ね返らない）
+        this.stat.guard = (this.stat.guard || 0) + 1;
+      }
+      s.q.copy(b.quaternion);
+    }
+  }
+  // vrm.update を差しかえる（アプリが自分で vrm.update を呼んでも、同じ決まりで進む）。three-vrm の VRM.update と同じ順
+  _wrapVrmUpdate() {
+    const v = this.vrm; if (v.__aoiWrapped) { v.__aoiOwner = this; return; }
+    const orig = v.update.bind(v); v.__aoiWrapped = true; v.__aoiOwner = this; v.__aoiOrigUpdate = orig;
+    v.update = d => {
+      const m = v.__aoiOwner; if (!m || !(d > 0)) return orig(d);
+      if (m._vuFid === m._fid) { m.stat.vuSkip = (m.stat.vuSkip || 0) + 1; return; }   // 同じこまで二度め（揺れものが倍の速さで進み、房が跳ねる）→ 進めない
+      m._vuFid = m._fid; d = Math.min(d, .05);
+      v.humanoid.update(); v.lookAt?.update(d); v.expressionManager?.update(); v.nodeConstraintManager?.update();
+      if (m._sprReset) { m.stat.sprReset++; m._sprReset = false; m._doSpringReset(); m.q.accS = 0; }
+      if (m.calm > 0) { m._springStep(d, true); m.q.accS = 0; }   // 現れるあいだ・置き直した直後：揺れずに落ち着く形へ
+      else if (m.q.tier === "low") { m.q.accS += d; if (!(m.q.n & 1)) { m._springStep(m.q.accS); m.q.accS = 0; } }   // low：髪・揺れものは一こまおき（たまった時間で進める）
+      else m._springStep(d);
+      v.materials?.forEach(x => x.update?.(d));
+    };
+  }
   walkTo(v) { this.goal = v ? new THREE.Vector3(v.x, this.pos.y, v.z) : null; this.driven = false; return this; }
   drive(x, z) { this.driven = true; this.goal = null; this.pos.x = x; this.pos.z = z; return this; }
   faceTo(yaw) { this.faceYaw = yaw; return this; }
@@ -441,7 +520,7 @@ export class AoiMotion {
         else if (mt.userData.aoiDith) { u.value = 1; mt.userData.aoiCutU.value = 0; mt.blending = mt.userData.aoiBl; mt.depthWrite = mt.userData.aoiDW; mt.userData.aoiDith = false; } else u.value = 1; }; });
   }
   update(dt, camera, { vrmUpdate = true } = {}) {
-    this._qTick(dt); dt = Math.min(dt, .05); if (dt <= 0) return; this.t += dt; const S = this.s;
+    this._qTick(dt); dt = Math.min(dt, .05); if (dt <= 0) return; this.t += dt; this._fid++; const S = this.s;
     if (this._fadingT != null && this.t - this._fadingT < .35 && this.blink.t < 0) this.blink.next = Math.max(this.blink.next, .35);   // v5：現れているあいだと直後はまばたきしない（目が線だけの一こまにしない）
     this._locomotion(dt, camera);
     this._apply();
@@ -453,14 +532,11 @@ export class AoiMotion {
     this._headEyes(dt, cam);
     this._faceTick(dt);
     if (this.springs.length && this.live && this.calm <= 0 && this.wind) { const t = this.t, a = this.wind; for (const s of this.springs) { s.j.settings.gravityDir.set(s.g.x + .18 * a * Math.sin(t * .63 + s.g.y), s.g.y, s.g.z + .1 * a * Math.sin(t * .41)).normalize(); s.j.settings.gravityPower = Math.max(s.p, .05); } }
-    if (vrmUpdate) {
-      if (this.q.tier === "low" && this.vrm.springBoneManager) {   // low：髪・揺れものは一こまおき（たまった時間で進める）
-        const v = this.vrm; this.q.accS += dt; v.humanoid.update(); v.lookAt?.update(dt); v.expressionManager?.update(); v.nodeConstraintManager?.update();
-        if (!(this.q.n & 1) || this.calm > 0) { v.springBoneManager.update(Math.min(this.q.accS, .05)); this.q.accS = 0; }
-        v.materials?.forEach(m => m.update?.(dt));
-      } else this.vrm.update(dt);
-      this.afterVrmUpdate(dt); }
-    if (this.calm > 0) { this.calm -= dt; this.vrm.springBoneManager?.setInitState?.(); this.vrm.springBoneManager?.reset?.(); this._robeReset = true; }
+    // v5.3：vrm.update は差しかえ済み（_wrapVrmUpdate）＝一こま一回・dt の上限・揺れものの刻み・low の一こまおき・現れるあいだは休みの形、をそこで守る
+    if (vrmUpdate) { this.vrm.update(dt); this.afterVrmUpdate(dt); }
+    // 現れるあいだ（calm）は揺れものを休みの形に保つ。v5.3：休みの形を焼きこまない（前は setInitState で、揺れた形が新しい休みの形になり、髪型が変わっていた）
+    if (this.calm > 0) { this.calm -= dt; this._robeReset = true; }
+    if (this._sprReset) { this._sprReset = false; this._doSpringReset(); this.stat.sprReset++; }
   }
   // { vrmUpdate:false } で vrm.update をアプリが呼ぶときは、そのあとでこれを呼ぶ（裾の布）
   afterVrmUpdate(dt) {
@@ -482,7 +558,7 @@ export class AoiMotion {
       const vx = (P.x - this._last.x) / dt, vz = (P.z - this._last.z) / dt, a = 1 - Math.exp(-10 * dt);
       this.vel.x += (vx - this.vel.x) * a; this.vel.z += (vz - this.vel.z) * a;
     } else this.vel.multiplyScalar(Math.exp(-8 * dt));
-    if (Math.hypot(P.x - this._last.x, P.z - this._last.z) > 1.6) { this._last.copy(P); this._apply(); this._placeFeet(); this._robeReset = true; }   // とんだときは足をそろえ直す
+    if (Math.hypot(P.x - this._last.x, P.z - this._last.z) > 1.6) { this._last.copy(P); this._apply(); this._placeFeet(); this._robeReset = true; this._sprReset = true; this._turn = null; this.calm = Math.max(this.calm, .3); this.stat.jump++; }   // とんだときは足をそろえ直す（v5.3：髪・裾のばねも新しい位置の休みの形へ）
     this._last.copy(P);
     this.speed = Math.hypot(this.vel.x, this.vel.z);
     const kT = clamp((this.speed - .12) / .6, 0, 1); this.k += (kT - this.k) * (1 - Math.exp(-4 * dt));
@@ -615,8 +691,9 @@ export class AoiMotion {
     // 歩く：片足を振る 0.38〜0.44 秒＋両足が着いている 0.1 秒（1 秒に 2 歩ほど・歩幅は身長の 4 割ほど）。着く足は、体より半歩先へ
     // v4：歩く調子（1 秒の歩数）を速さに合わせる（人は速いほど歩数も歩幅も増える。秒速 0.85 m で約 1.75 歩・歩幅 0.49 m、1.3 m で約 1.9 歩）。
     // 一歩＝振る 8 割＋両足が着いている 2 割（歩きの一周期の 4 割が振り・1 割ずつ両足）。小さな碧に合わせ、身長の比で少し縮める
-    const cad = clamp(1.42 + .38 * this.speed / Math.max(.5, this.sc), 1.5, 2.1), Tst = 1 / cad;
-    const swingT = moving ? .78 * Tst : .5, ds = moving ? .22 * Tst : .07, landLead = moving ? .5 * Tst : 0;
+    // v5.3：速いとき（毎秒 1.2 m より上）は歩数をさらに増やし、歩幅が脚の届く長さを超えない（前は 1 秒 2.1 歩で頭打ち＝毎秒 2 m を超えると脚が届かず、腰が急に沈んで髪が跳ねた）
+    const vr = this.speed / Math.max(.5, this.sc), cad = clamp(1.42 + .38 * vr + .3 * Math.max(0, vr - 1.2), 1.5, 2.5), Tst = 1 / cad;
+    const swingT = moving ? .78 * Tst : .5, ds = moving ? .22 * Tst * (1 - .7 * clamp(vr - 1, 0, 1)) : .07, landLead = moving ? .5 * Tst : 0;
     const swinging = F.L.swing || F.R.swing; this._ds = (this._ds || 0) - dt;
     const tr = this._turn;
     if (tr) { if (!swinging && tr.i < tr.n && tr.t >= tr.lead * .7 + tr.i * tr.T / tr.n) this._turnStep(tr); }   // v5：向きかえの最中は、決めた順に踏む（ほかの踏みかえはしない）
@@ -629,6 +706,7 @@ export class AoiMotion {
     let gait = { u: 0, side: 0, ph: 0 };
     for (const key of ["L", "R"]) {
       const f = F[key], sw = f.swing; if (!sw) continue;
+      if (moving && !sw.fix && sw.T > swingT) sw.T -= (sw.T - swingT) * Math.min(1, 12 * dt);   // v5.3：歩き出しで速くなっていくとき、振っている足も今の調子へ（遅い振りのまま体が先へ行き、着いた足が引きずられていた）
       sw.u += dt / sw.T; const u = clamp(sw.u, 0, 1);
       this._home(f, home, moving ? (1 - u) * sw.T + landLead : 0);
       // 着く場所は振り出しの 7 割までに決め、横の動きは 85% で終える（下ろすあいだは横に動かさない＝着いてからすべらない）
@@ -667,7 +745,7 @@ export class AoiMotion {
       for (const key of ["L", "R"]) { const s = key === "L" ? "left" : "right", up = B[s + "UpperLeg"], lo = B[s + "LowerLeg"], ft = B[s + "Foot"]; if (!up || !lo || !ft) continue;
         const A = up.getWorldPosition(_v[3]), T = tg[key], Lm = (lo.position.length() + ft.position.length()) * this.vs * .985, h2 = (A.x - T.x) ** 2 + (A.z - T.z) ** 2;
         const vy = A.y - T.y, need = h2 < Lm * Lm ? Math.sqrt(Lm * Lm - h2) : 0; if (vy > need) drop = Math.max(drop, vy - need); }
-      this._drop = Math.max(drop, (this._drop || 0) * Math.exp(-10 * dt));   // 下げるのはすぐ・戻すのはなめらかに（腰が跳ねない）
+      { const d0 = this._drop || 0; this._drop = drop > d0 ? Math.min(drop, d0 + 1.2 * this.sc * dt) : Math.max(drop, d0 * Math.exp(-10 * dt)); }   // v5.3：下げるのも毎秒 1.2 m まで（着地のこまで体が急に沈み、髪が跳ね上がっていた）   // 下げるのはすぐ・戻すのはなめらかに（腰が跳ねない）
       if (hips && this._drop > 1e-5) hips.position.y -= this._drop / this.vs; }   // 世界の行列は、下の IK が太ももの親（腰）から順に取り直す（全身の更新はしない＝軽い）
     for (const key of ["L", "R"]) this._ik(key === "L" ? "left" : "right", tg[key], F[key].yaw, pit[key]);
   }

@@ -1390,7 +1390,7 @@ function aoiTick(dt) {
   if (!A.wp || A.repath <= 0 || !A.goalKey || A.goalKey.distanceTo(goal) > .8) { A.wp = route(goal, false, A.pos).map(p => p.setY(0)); A.goalKey = goal.clone(); A.repath = .7; }
   while (A.wp.length > 1 && Math.hypot(A.wp[0].x - A.pos.x, A.wp[0].z - A.pos.z) < .7) A.wp.shift();
   const tgt = A.wp[0] || goal;
-  const w = A.goal ? 4.2 : 3.4, n = Math.max(1, Math.ceil(dt / .02)), h = dt / n, vmax = 2.6;
+  const w = A.goal ? 4.2 : 3.4, n = Math.max(1, Math.ceil(dt / .02)), h = dt / n, vmax = 2.0;   // 2026-10-14：毎秒 2.6 m では歩きの脚が届かず、すべって腰が沈み、髪が逆立っていた → 毎秒 2.0 m まで
   // 進めないことの見張り
   const dGoal = Math.hypot(goal.x - A.pos.x, goal.z - A.pos.z);
   if (!A.lastP) A.lastP = A.pos.clone();

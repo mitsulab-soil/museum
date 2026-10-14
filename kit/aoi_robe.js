@@ -218,12 +218,20 @@ export function hideCoveredLegs(vrm, { keep = .35, match = /skin|body/i, skip = 
     const at = b => { const k = sk.bones.indexOf(b); return k < 0 ? null : new THREE.Vector3().applyMatrix4(m.copy(sk.boneInverses[k]).invert()); };   // 骨の静止の位置（形の座標）
     const hp = at(hips), fy = Math.max(...feet.map(at).filter(Boolean).map(p => p.y)); if (!hp || !isFinite(fy)) return;
     const yCut = fy + (hp.y - fy) * keep, G = o.geometry, P = G.attributes.position, SI = G.attributes.skinIndex, SW = G.attributes.skinWeight; if (!SI) return;
-    const toModel = o.bindMatrix; let c = 0;
+    const toModel = o.bindMatrix, toGeo = m.clone().copy(toModel).invert(); let c = 0;
+    // v2（2026-10-14 本人「碧の歩き方がおかしい」・11 人の P1「裾の割れ目から肌色の細い棒が縦に見える」）：
+    // 前は畳む頂点を腰の芯の一点へ集めていたので、残した足首の輪と腰の芯をつなぐ三角形が、腰から足首まで細長い棒になって裾の割れ目から見えていた。
+    // いまは、その高さの脚の芯の線（股関節→膝→足首）へ横だけ寄せる（太さ 0 の線にする）。三角形は面積 0 になって見えず、残す輪との境目も一段ぶんの小さなくさびで済む。
+    const side = {}; for (const sd of ["left", "right"]) { const u = at(raw(sd + "UpperLeg")), l = at(raw(sd + "LowerLeg")), f = at(raw(sd + "Foot")); if (u && l && f) side[sd] = { u, l, f, b: new Set([raw(sd + "UpperLeg"), raw(sd + "LowerLeg")].map(b => sk.bones.indexOf(b))) }; }
+    const axis = (S, y, out) => { const [a, b] = y >= S.l.y ? [S.u, S.l] : [S.l, S.f], t = Math.max(0, Math.min(1, (y - b.y) / ((a.y - b.y) || 1))); return out.set(b.x + (a.x - b.x) * t, y, b.z + (a.z - b.z) * t); };
+    const ax = new THREE.Vector3();
     for (let i = 0; i < P.count; i++) {
-      let lw = 0; for (let k = 0; k < 4; k++) if (bi.has(SI.getComponent(i, k))) lw += SW.getComponent(i, k);
+      let lw = 0, wl = 0, wr = 0; for (let k = 0; k < 4; k++) { const j = SI.getComponent(i, k), w = SW.getComponent(i, k); if (bi.has(j)) lw += w; if (side.left?.b.has(j)) wl += w; if (side.right?.b.has(j)) wr += w; }
       if (lw < .5) continue; v.fromBufferAttribute(P, i).applyMatrix4(toModel); if (v.y < yCut) continue;
-      const q = hp.clone().applyMatrix4(m.copy(toModel).invert()); P.setXYZ(i, q.x, q.y, q.z);   // 腰の芯へ畳む（ローブの中に隠れる）
-      SI.setXYZW(i, hi, hi, hi, hi); SW.setXYZW(i, 1, 0, 0, 0); c++;
+      const S2 = side[wl >= wr ? "left" : "right"];
+      if (S2) { axis(S2, v.y, ax).applyMatrix4(toGeo); P.setXYZ(i, ax.x, ax.y, ax.z); }   // 脚の芯の線へ（重みはそのまま＝脚と一緒に動く）
+      else { const q = hp.clone().applyMatrix4(toGeo); P.setXYZ(i, q.x, q.y, q.z); SI.setXYZW(i, hi, hi, hi, hi); SW.setXYZW(i, 1, 0, 0, 0); }
+      c++;
     }
     if (c) { P.needsUpdate = true; SI.needsUpdate = true; SW.needsUpdate = true; G.computeBoundingSphere(); n += c; }
   });
