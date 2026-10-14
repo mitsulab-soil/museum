@@ -1,4 +1,5 @@
 /* 碧のローブの裾を、布のように揺らす ── aoi_robe.js（2026-10-13・v2 2026-10-14・v2.1 同日）
+   v2.2（11 人「裾が風船のようにふくらむ」）：脚に寄せる量 0.85→0.7・脚の側へ移す幅を少し狭く。
    v2.1（11 人「後ろから見た裾が硬い」）：裾の下の段ほど戻る力を弱め（下 3 段 2〜3 割）、速さが変わるときの慣性を 7 割→7 割 8 分に。
    歩くときのなびきを、進む向きの後ろ側の布ほど大きく（後ろの裾が遅れて揺れる。前の裾は脚に押されるので小さめのまま）。
    v2（11 人「裾が硬い円すいのまま動かず、すべって見える」「裾の割れ目の下端に黒いくさび」）：布の行き先を、脚の芯の前後・左右のずれに合わせて寄せる
@@ -109,7 +110,7 @@ export class AoiRobe {
           at.push([seg, t, new THREE.Vector3().lerpVectors(rp[seg], rp[seg + 1], t)]); }
         return { js, rp, at, side: rp[0].x >= cx ? 1 : -1 }; }).filter(Boolean);
       this._legNow = this.legAx.map(() => [...Array(M)].map(() => new THREE.Vector3()));
-      this.legFollow = .85;   // 脚のずれを、布の行き先にどれだけ移すか（裾で最大）
+      this.legFollow = .7;   // v2.2：0.85→0.7（ふくらみを抑える）   // 脚のずれを、布の行き先にどれだけ移すか（裾で最大）
     }
     this._hv = new THREE.Vector3(); this._hpPrev = null;   // 腰の水平の速さ（歩くとき、裾が少し後ろへなびく）
     this.ok = true; this.count = sel.length; this.reset();
