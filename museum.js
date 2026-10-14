@@ -13,7 +13,7 @@ import * as TX from "./tex.js";
 import { esc, fname, licHTML, credit } from "./common.js";
 import { LIB, libWalkable, buildLibrary, createReader, bookList } from "./library.js";
 import { createExhibit } from "./anim3d.js";
-import { createHolo } from "./holo.js";
+import { createHolo } from "./holo.js?v=20261014p2";
 // 碧の動きと表情（共通の部品 AoiMotion の写し・2026-10-13）。kit/ は 12_ブランド/_共通3D/kit/ の aoi_motion.js・aoi_mocap.js・aoi_mocap.json・aoi_robe.js の写し
 import { AoiMotion } from "./kit/aoi_motion.js";
 
@@ -644,7 +644,10 @@ function bindCreatures(list) {
 const roomCreatures = (slug, kid, f) => EX.roomItems.filter(it => it.a.room === slug && it.a.kei === kid && (!f || fname(it.a.img || "") === fname(f)));
 // 館の 3D 模型・3D 地図・部屋の立体の札（holo.js・2026-10-09 本人）
 const HOLO = createHolo({ THREE, scene, camera, rooms, ENT, LIB_FACE, NF, faceTh, HA, R, HALF, DOOR, VEST, LIB, libWorld, NAMES, GOTH, MINCHO,
-  onOpen: () => { $("holoBar").hidden = false; }, onClose: () => { $("holoBar").hidden = true; } });
+  onOpen: () => { $("holoBar").hidden = false; $("hint").hidden = true; placeHoloBar(); }, onClose: () => { $("holoBar").hidden = true; } });
+// 3D 地図のボタン（平面の地図／地図をとじる）は、上の道具の下に置く（2026-10-14 テストプレー：下に置くと、碧の「案内して／自分で歩く」と重なった）
+function placeHoloBar() { const hb = $("holoBar"); if (hb.hidden) return; let b = 0; for (const id of ["tools", "where"]) { const e = $(id); if (e && e.getClientRects().length) b = Math.max(b, e.getBoundingClientRect().bottom); } hb.style.top = Math.round(b + 10) + "px"; hb.style.bottom = "auto"; }
+addEventListener("resize", placeHoloBar);
 OBST.push({ x: 0, z: -1.9, r: 1.2 });   // 広間のまん中の台
 function holoAct(h) {
   if (h.t === "open") { HOLO.open(); if (T.idle?.map3d && !SP.resolve) freeTalk([T.idle.map3d]); return; }
@@ -1154,7 +1157,7 @@ let dragging = false, down = null;
 const marker = new THREE.Mesh(new THREE.RingGeometry(.22, .3, 40), new THREE.MeshBasicMaterial({ color: 0xe7cf93, transparent: true, opacity: 0 }));
 marker.rotation.x = -Math.PI / 2; scene.add(marker);
 const TAP_PX = isTouch ? 10 : 6;   // これより動いたら「見回す」（タップにしない）
-let touches = 0;
+let touches = 0, eatTap = false;
 stage.addEventListener("pointerdown", e => {
   if (mode !== "walk" || e.target !== renderer.domElement) return;
   touches++; if (down) { down.multi = true; return; }
@@ -1171,6 +1174,7 @@ addEventListener("pointerup", e => {
   touches = Math.max(0, touches - 1);
   if (mode !== "walk" || !down || e.pointerId !== down.id) return;
   const d = down, wasDrag = dragging || d.max > TAP_PX || d.multi; down = null; dragging = false;
+  if (eatTap) { eatTap = false; return; }
   if (!wasDrag) pick(e.clientX, e.clientY);
 });
 addEventListener("pointercancel", () => { touches = 0; down = null; dragging = false; });
@@ -1336,6 +1340,8 @@ async function loadAoi() {
     A.face = []; v.scene.traverse(o => { const d = o.morphTargetDictionary; if (d && d.Fcl_EYE_Joy != null) A.face.push({ m: o, eye: d.Fcl_EYE_Joy, mth: d.Fcl_MTH_Fun, brw: d.Fcl_BRW_Fun }); });
     A.gaze = new THREE.Object3D(); scene.add(A.gaze); if (v.lookAt) v.lookAt.target = A.gaze;
     const blob = new THREE.Mesh(new THREE.CircleGeometry(.42, 32), blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = .006; aoi.add(blob);
+    // 部屋の暖かく低い光で、碧の顔が灰色に沈んだ（2026-10-14 11 人）→ 地の色の 20% を自分の光として足す（色は変えず、暗がりで沈まないように）
+    v.scene.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)) { if (!m || !m.map || !m.emissive || m.userData?.aoiOverlay) continue; try { if (!m.emissiveMap) m.emissiveMap = m.map; m.emissive.setRGB(.2, .2, .2); m.needsUpdate = true; } catch (e) {} } });
     A.springs = (v.springBoneManager?.joints ? [...v.springBoneManager.joints] : []).map(j => ({ j, g: j.settings.gravityDir.clone(), p: j.settings.gravityPower }));
     // 2026-10-13：碧の体・顔・口・まばたき・揺れもの・裾は共通の部品（AoiMotion v4）。館に固有の仕草（手を差し出す・とまったら引き寄せる・手を振る・かがむ）だけを上に重ねる
     try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY }); A.springs = null; }
@@ -1390,7 +1396,7 @@ function aoiTick(dt) {
   if (!A.wp || A.repath <= 0 || !A.goalKey || A.goalKey.distanceTo(goal) > .8) { A.wp = route(goal, false, A.pos).map(p => p.setY(0)); A.goalKey = goal.clone(); A.repath = .7; }
   while (A.wp.length > 1 && Math.hypot(A.wp[0].x - A.pos.x, A.wp[0].z - A.pos.z) < .7) A.wp.shift();
   const tgt = A.wp[0] || goal;
-  const w = A.goal ? 4.2 : 3.4, n = Math.max(1, Math.ceil(dt / .02)), h = dt / n, vmax = 2.0;   // 2026-10-14：毎秒 2.6 m では歩きの脚が届かず、すべって腰が沈み、髪が逆立っていた → 毎秒 2.0 m まで
+  const w = A.goal ? 4.2 : 3.4, n = Math.max(1, Math.ceil(dt / .02)), h = dt / n, vmax = 2.0;   // 2026-10-14 本人「碧の歩き方がおかしい」：毎秒 2.6 m では歩きの脚が届かず（足と目標のずれ最大 82 cm）、すべって腰が沈み、髪が逆立っていた → 歩いて自然な毎秒 2.0 m まで（遅れたら、止まったときに追いつく）
   // 進めないことの見張り
   const dGoal = Math.hypot(goal.x - A.pos.x, goal.z - A.pos.z);
   if (!A.lastP) A.lastP = A.pos.clone();
@@ -1418,7 +1424,7 @@ function aoiTick(dt) {
   A.yaw += clamp(wrapA(fy - A.yaw) * ease(dt, 4), -2.2 * dt, 2.2 * dt);
   if (AM) { AM.drive(A.pos.x, A.pos.z); AM.faceTo(fy); }   // 位置は館が決め（壁・扉）、足の運びと向きの踏みかえは AoiMotion
   else { aoi.position.set(A.pos.x, groundY(A.pos.x, A.pos.z), A.pos.z); aoi.rotation.y = A.yaw; }
-  aoi.visible = Math.hypot(A.pos.x - me.pos.x, A.pos.z - me.pos.z) > .9;
+  aoi.visible = Math.hypot(A.pos.x - me.pos.x, A.pos.z - me.pos.z) > .9 && !HOLO.open_;   // 3D の地図をひらいているあいだは姿を隠す（2026-10-14 11 人：地図の円が碧の首から上を隠し、体だけが見えた。声と字幕は続く）
   const lookWork = A.look && A.talkT < 2.6;
   // 抜け出た生きものを目で追い、とまりそうなら左手を差し出す（2026-10-09 本人）
   const wt = EX?.watch?.(), watching = wt && !lookWork;
@@ -1878,8 +1884,10 @@ function showHint() {
 }
 let woke = false;
 const OTO_EARLY = new URLSearchParams(location.search).get("mode") === "oto";
+// はじめの合図（2026-10-14 11 人：はじめの画面に「押すとはじまる」の合図がなかった）
+const startCue = (() => { const d = document.createElement("div"); d.id = "startCue"; d.setAttribute("aria-hidden", "true"); d.textContent = "画面を押すと、碧の案内がはじまります（音が出ます）"; document.body.appendChild(d); return d; })();
 function wake() {   // はじめて押したとき：音の仕組みを立て、碧がひとこと
-  if (woke || mode !== "walk") return; woke = true;
+  if (woke || mode !== "walk") return; woke = true; startCue.remove();
   AUD.init(); AUD.zone(ambOf(zone.key)); $("guide").hidden = false; aoiJump();
   // 2026-10-07 本人「起動時に碧が登場するのは広間の中央に」：円堂のまん中に、見る人のほうを向いて現れる
   if (vrm) { A.pos.set(0, 0, 1.2); A.goal = new THREE.Vector3(0, 0, 1.2); A.look = null; A.yaw = Math.atan2(me.pos.x, me.pos.z - 1.2); A.calm = 1.6; A.fade = 0; setTimeout(() => { if (A.goal && A.goal.z === 1.2) A.goal = null; }, 9000); }
@@ -1887,7 +1895,7 @@ function wake() {   // はじめて押したとき：音の仕組みを立て、
   const acts = [["案内して", () => introWalk(), true], ["自分で歩く", () => { intro.tok++; freeTalk([T.idle.free]); }], ...(resumeAt && resumeOK ? [["続きから（" + rooms[region(resumeAt[0], resumeAt[1]).i].name + "）", resumeGo]] : [])];
   curActs = () => acts; talk(T.outside, acts);
 }
-addEventListener("pointerdown", e => { if (OTO_EARLY && e.target.closest?.("#otoBar,#otoRooms")) return; wake(); }, { capture: true });
+addEventListener("pointerdown", e => { if (OTO_EARLY && e.target.closest?.("#otoBar,#otoRooms")) return; const w0 = woke; wake(); if (!w0 && woke && e.target === renderer.domElement) eatTap = true; }, { capture: true });   // 2026-10-14 11 人：はじめの一押しで 3D 地図がひらいたり絵の前へ歩きだしたりして、名のる碧が見えなかった → はじめの一押しは「はじめる」だけ
 addEventListener("keydown", e => { if (OTO_EARLY) return; if (!e.target.closest?.("input,textarea,select")) wake(); }, { capture: true });
 async function introWalk(toLibrary) {
   const tk = ++intro.tok; if (!woke) wake();

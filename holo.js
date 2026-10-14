@@ -144,14 +144,16 @@ export function createHolo(o) {
       });
       const hint = label("区画を押すと、そこへ歩きます", null, Math.min(.42, tw * .6), { size: .16, bg: "rgba(18,12,6,.6)" }); hint.position.set(0, -th * .05 - .24, 0); card.add(hint);
     }
-    card.position.set(0, camera.aspect < .8 ? .12 : .05, -1.7); card.visible = true; cardT = 0; cardPos = me.clone();
+    card.position.set(0, camera.aspect < .8 ? .33 : .05, -1.7); card.visible = true; cardT = 0; cardPos = me.clone();
   }
+  // 2026-10-14 11 人：スマホで区画の札「暮らし」「世界の雨」が碧の顔にかかった → 縦長では札を上へ（.12 → .33）
   function hideRoom() { card.visible = false; cardRoom = -1; }
 
   // ---------------------------------------------------------------- 毎こま
   function tick(dt, me, yaw, region, local, aoiPos, t) {
     pm.g.rotation.y = t * .08;   // 台の模型はゆっくり回る
     pedHint.position.y = 1.95 + Math.sin(t * 1.6) * .03;
+    { const pw = ped.getWorldPosition(new THREE.Vector3()); pedHint.visible = !holo.visible && Math.hypot(me.x - pw.x, me.z - pw.z) > 2.6; }   // 近づいたら札を消す（2026-10-14 11 人：台の上の絵を半分隠した）
     if (holo.visible) {
       openT += dt; const k = Math.min(1, openT / .35); holo.scale.setScalar(.6 + .4 * (1 - (1 - k) ** 3));
       const q = mapPt(me.x, me.z, region, local); meG.position.set(q.x, 4.2, q.z); meG.rotation.y = yaw + Math.PI; meLab.position.set(q.x, 9, q.z);
@@ -159,7 +161,7 @@ export function createHolo(o) {
     }
     if (card.visible) {
       cardT += dt; const k = Math.min(1, cardT / .5), s = .7 + .3 * (1 - (1 - k) ** 3);
-      card.scale.setScalar(s); card.position.y = (camera.aspect < .8 ? .12 : .05) + Math.sin(t * 1.3) * .006;
+      card.scale.setScalar(s); card.position.y = (camera.aspect < .8 ? .33 : .05) + Math.sin(t * 1.3) * .006;
       const away = cardPos && Math.hypot(me.x - cardPos.x, me.z - cardPos.z) > 3.2;
       if (cardT > 11 || away) { const f = Math.max(0, 1 - (cardT > 11 ? (cardT - 11) / .6 : 1)); card.traverse(m => { if (m.material) m.material.opacity = Math.min(m.material.opacity, f); }); if (f <= 0 || away) hideRoom(); }
     }
