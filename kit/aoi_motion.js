@@ -756,10 +756,10 @@ export class AoiMotion {
     P("neck", [-leanB * .3 + cu * .5, 0, .025 * ws], [-.06 * bA + .01 * br - leanA * .3, 0, tilt * .4 + .022 * cp]);
     P("head", [.02 * k - leanB * .3 + cu * .5, 0, .02 * ws], [-.04 * bA - leanA * .3 + S.nod.step(dt), 0, tilt * .6 + .012 * cp]); this._tiltA = tilt;
     // 腰の位置：重心の側へ寄る・前後の揺れ・礼では後ろへ引く・歩くとき少し沈み、片足立ちの真ん中で高くなる
-    S.hipY.t = -.024 * k + .02 * k * Math.sin(Math.PI * g.u) * (1 - mw) - .006 * Math.abs(ws) * (1 - mw) - .004 * br * (1 - k) - .06 * Math.sin(bA) - .006 * Math.abs(cp);   /* 礼では膝を少しゆるめる */ S.hipY.step(dt);
+    S.hipY.t = -.008 * k + .006 * k * Math.sin(Math.PI * g.u) * (1 - mw) - .006 * Math.abs(ws) * (1 - mw) - .004 * br * (1 - k) - .06 * Math.sin(bA) - .006 * Math.abs(cp);   /* 礼では膝を少しゆるめる */ S.hipY.step(dt);
     const L0 = this.legLen / this.sc, mp = this._mp;   // 記録の腰の揺れ（脚の長さに対する比）→ 碧の長さへ。腰が左右に寄りすぎないよう少し控える
     const mh = this.pz.mH;   // 記録の腰の横の揺れは v3 の 4 割（左右の揺れを抑える）。upright ではさらに小さく
-    this._hipOff = [(.03 * ws + .004 * swX - .02 * gs) * (1 - mw) + mp.x * L0 * .11 * mh * mw + .032 * cp, S.hipY.v + mp.y * L0 * .6 * mw, (.005 * swZ) * (1 - mw) + mp.z * L0 * .3 * mh * mw - .07 * Math.sin(bA)];
+    this._hipOff = [(.03 * ws + .004 * swX - .02 * gs) * (1 - mw) + mp.x * L0 * .11 * mh * mw + .032 * cp, S.hipY.v + mp.y * L0 * .18 * mw, (.005 * swZ) * (1 - mw) + mp.z * L0 * .3 * mh * mw - .07 * Math.sin(bA)];
     this._ws = ws; this._br = br; this._tk = tk; this._ls = ls; this._bw = bw;
     // 骨へ：土台（手続きの形と記録を、記録の効きで混ぜる）× 重ねる動き
     const hips = B.hips; if (hips) { const h0 = this.rest.hip0; hips.position.set(h0.x + this._hipOff[0] * this.hk, h0.y + this._hipOff[1] * this.hk, h0.z + this._hipOff[2] * this.hk); }
@@ -814,7 +814,7 @@ export class AoiMotion {
     // 一歩＝振る 8 割＋両足が着いている 2 割（歩きの一周期の 4 割が振り・1 割ずつ両足）。小さな碧に合わせ、身長の比で少し縮める
     // v5.3：速いとき（毎秒 1.2 m より上）は歩数をさらに増やし、歩幅が脚の届く長さを超えない（前は 1 秒 2.1 歩で頭打ち＝毎秒 2 m を超えると脚が届かず、腰が急に沈んで髪が跳ねた）
     const vr = this.speed / Math.max(.5, this.sc), cad = clamp(1.65 + .42 * vr + .3 * Math.max(0, vr - 1.2), 1.7, 2.6), Tst = 1 / cad;
-    const swingT = moving ? .78 * Tst : .5, ds = moving ? .22 * Tst * (1 - .7 * clamp(vr - 1, 0, 1)) : .07, landLead = moving ? .32 * Tst : 0;
+    const swingT = moving ? .64 * Tst : .5, ds = moving ? .16 * Tst * (1 - .7 * clamp(vr - 1, 0, 1)) : .07, landLead = moving ? .42 * Tst : 0;
     const swinging = F.L.swing || F.R.swing; this._ds = (this._ds || 0) - dt;
     const tr = this._turn;
     if (tr) { if (!swinging && tr.i < tr.n && tr.t >= tr.lead * .7 + tr.i * tr.T / tr.n) this._turnStep(tr); }   // v5：向きかえの最中は、決めた順に踏む（ほかの踏みかえはしない）
@@ -877,7 +877,7 @@ export class AoiMotion {
       for (const key of ["L", "R"]) { const s = key === "L" ? "left" : "right", up = B[s + "UpperLeg"], lo = B[s + "LowerLeg"], ft = B[s + "Foot"]; if (!up || !lo || !ft) continue;
         const A = up.getWorldPosition(_v[3]), T = tg[key], Lm = (lo.position.length() + ft.position.length()) * this.vs * .985, h2 = (A.x - T.x) ** 2 + (A.z - T.z) ** 2;
         const vy = A.y - T.y, need = h2 < Lm * Lm ? Math.sqrt(Lm * Lm - h2) : 0; if (vy > need) drop = Math.max(drop, vy - need); }
-      { const d0 = this._drop || 0; this._drop = drop > d0 ? Math.min(drop, d0 + 1.2 * this.sc * dt) : Math.max(drop, d0 * Math.exp(-10 * dt)); }   // v5.3：下げるのも毎秒 1.2 m まで（着地のこまで体が急に沈み、髪が跳ね上がっていた）   // 下げるのはすぐ・戻すのはなめらかに（腰が跳ねない）
+      { const d0 = this._drop || 0, target = Math.min(drop, .025 * this.sc); this._drop = d0 + clamp(target - d0, -.10 * this.sc * dt, .10 * this.sc * dt); }   // 歩き始めに腰が上下しないよう、補正は2.5cm・毎秒10cm以内。踏み替えも短くして脚の到達を保つ。
       if (hips && this._drop > 1e-5) hips.position.y -= this._drop / this.vs; }   // 世界の行列は、下の IK が太ももの親（腰）から順に取り直す（全身の更新はしない＝軽い）
     for (const key of ["L", "R"]) this._ik(key === "L" ? "left" : "right", tg[key], F[key].yaw, pit[key]);
   }
