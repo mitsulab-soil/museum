@@ -1297,6 +1297,8 @@ function approach(bay, sl, then) {
 addEventListener("keydown", e => {
   if (e.target.closest?.("input,textarea,select")) return;
   const k = e.key.toLowerCase();
+  // 操作部品の Space は、そのボタン自身へ渡す（全体の音声停止で奪わない）。
+  if (k === " " && e.target.closest?.('button,a[href],[role="button"],[role="link"],[contenteditable="true"]')) return;
   if (reader.isOpen) { reader.key(e); return; }
   if (mode !== "walk") return;
   if (k === "escape") { closeAll(); return; }
