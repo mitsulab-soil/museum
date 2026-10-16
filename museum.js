@@ -965,7 +965,7 @@ const AUD = {
     try {
       if (a.kind === "bgm") {
         let el = this.els.get(a.f); if (!el) { el = new Audio(a.f); el.loop = true; el.preload = "auto"; this.els.set(a.f, el); const s = this.ctx.createMediaElementSource(el); el._g = this.ctx.createGain(); s.connect(el._g); }
-        el._g.disconnect(); el._g.connect(g); el.currentTime = el.currentTime || 0; await el.play(); cur.stop = () => el.pause();
+        el._g.disconnect(); el._g.connect(g); el._museumOwner = cur; el.currentTime = el.currentTime || 0; await el.play(); cur.stop = () => { if (el._museumOwner === cur) el.pause(); };
       } else {
         const b = await this.buffer(a.f); if (this.cur !== cur) return;
         const s = this.ctx.createBufferSource(); s.buffer = b; s.loop = true; if (a.le && b.duration > a.le) { s.loopStart = a.ls; s.loopEnd = a.le; } s.connect(g); s.start(0, a.ls || 0); cur.stop = () => s.stop();
