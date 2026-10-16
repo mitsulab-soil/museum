@@ -323,6 +323,13 @@ body.oto #hint,body.oto #zones{display:none!important}
 "three/addons/":"./vendor/three/examples/jsm/",
 "@pixiv/three-vrm":"./vendor/three-vrm/three-vrm.module.min.js"}}
 </script>
+<!-- Start the same 3D module graph and Aoi asset while the data scripts arrive.
+     modulepreload does not execute museum.js before window.MUSEUM/VOICE/BOOKS. -->
+<link rel="modulepreload" href="museum.js?v=20261017-startup1" fetchpriority="high">
+<link rel="modulepreload" href="vendor/three/examples/jsm/loaders/GLTFLoader.js">
+<link rel="modulepreload" href="vendor/three/examples/jsm/libs/meshopt_decoder.module.js">
+<link rel="modulepreload" href="vendor/three-vrm/three-vrm.module.min.js">
+<link rel="preload" href="s/assets/aoi/aoi.vrm" as="fetch" crossorigin fetchpriority="high">
 </head>
 <body>
 <script src="loader/loader.js" data-title="森羅博物館" data-en="Shinra Museum" data-icon="favicon/icon.svg" data-replace="boot"></script>
@@ -344,7 +351,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 </header>
 
 <section id="guide" aria-label="碧のことば（字幕）" hidden>
-  <div class="face"><img src="s/assets/aoi/face.webp" alt="" onerror="this.style.visibility='hidden'"><i></i></div>
+  <div class="face"><img src="s/assets/aoi/face.webp" decoding="async" fetchpriority="low" alt="" onerror="this.style.visibility='hidden'"><i></i></div>
   <div class="txt">
     <div class="who">碧（あおい）<small id="sayState"></small></div>
     <p id="say" aria-live="polite"></p>
@@ -437,7 +444,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <script src="data/voice.js" onerror="window.VOICE={}"></script>
 <script src="data/books.js" onerror="window.BOOKS=[]"></script>
 <script src="data/anim.js" onerror="window.ANIM=[]"></script>
-<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261016-controls';document.body.appendChild(s);}</script>
+<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261017-startup1';document.body.appendChild(s);}</script>
 <noscript><p style="padding:20px">この博物館は JavaScript で動きます。</p></noscript>
 </body>
 </html>
