@@ -9,7 +9,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import * as TX from "./tex.js";
+import * as TX from "./tex-baked.js?v=20261017-1";
 import { esc, fname, licHTML, credit } from "./common.js";
 import { LIB, libWalkable, buildLibrary, createReader, bookList } from "./library.js";
 import { createExhibit } from "./anim3d.js";
@@ -1952,8 +1952,8 @@ function prog(p) { $("prog").querySelector("i").style.width = Math.round(p) + "%
 placeStart(); resize(); camera.position.copy(me.pos); camera.rotation.set(me.pitch, me.yaw, 0, "YXZ"); setZone(zoneOf(), true); streamBays();
 
 prog(20);
-const warm = Promise.all([new Promise(r => setTimeout(r, 50)), loadAoi()]);
-renderer.compileAsync?.(scene, camera).catch(() => {});
+const warm = Promise.all([new Promise(r => setTimeout(r, 50)), TX.ready, loadAoi()]);
+// 画面外の全展示まで一度にコンパイルせず、rendererが実際に見える材質から用意する。
 requestAnimationFrame(tick);
 const resumeAt = store.get("smm-at", null);
 const resumeOK = !!resumeAt && (() => { space = "museum"; return walkable(resumeAt[0], resumeAt[1]) && region(resumeAt[0], resumeAt[1]).kind === "room"; })();
