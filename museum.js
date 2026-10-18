@@ -778,6 +778,7 @@ async function hang(bay, sl) {
     const gl = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(.86, ww * .43), .02), glowMat); gl.rotation.x = Math.PI / 2; gl.position.set(0, hh / 2 + fr + .134, .2); grp.add(gl); }
   const lab = labelCard(w, Math.max(.62, Math.min(1.3, ww))); lab.position.set(0, -hh / 2 - fr - .16, .15); grp.add(lab);
   img.userData = frame.userData = { bay, slot: sl }; clickables.push(img, frame);
+  window.__museumArchitecture?.refineFrame(frame,ww,hh,fr);
   bay.g.add(grp); sl.mesh = grp; sl.tex = t; sl.ph.visible = false;
 }
 function unhang(bay) {
@@ -1959,6 +1960,11 @@ const resumeAt = store.get("smm-at", null);
 const resumeOK = !!resumeAt && (() => { space = "museum"; return walkable(resumeAt[0], resumeAt[1]) && region(resumeAt[0], resumeAt[1]).kind === "room"; })();
 function resumeGo() { intro.tok++; space = "museum"; teleport(new THREE.Vector3(resumeAt[0], 0, resumeAt[1]), null, () => { me.yaw = resumeAt[2]; freeTalk([T.idle.hello]); }); }
 warm.then(() => { prog(100); enterWalk(); showHint(); });
+// Architectural detail starts after an interactive frame; it does not join the boot gate.
+let architectureRequested=false;
+function requestArchitecture(){if(architectureRequested)return;architectureRequested=true;setTimeout(()=>{(window.requestIdleCallback||((f)=>setTimeout(f,24)))(()=>import('./museum-architecture.js?v=20261018-1').then(m=>m.install({scene,world,mats:{woodMat,darkWood,frameMat,brassMat,giltMat},floors,bays,E,STEPS,PLAZA_Y})).catch(e=>console.warn('館の細部を読めませんでした',e)),{timeout:500});},1200);}
+warm.then(()=>requestAnimationFrame(()=>requestAnimationFrame(requestArchitecture)));
+
 
 // ---------------------------------------------------------------- 音で巡る館（?mode=oto）。2026-10-07 本人「目が見えない友人がいます。文字が見えにくいでなく、音で感じるという世界なので、
 //   url を切り替えて、目の見えにくい方向けのリンクを作れば初期設定から設定できる」。画面を見なくても完結する：碧の声が主・空間の音・大きなボタン四つとキーボード

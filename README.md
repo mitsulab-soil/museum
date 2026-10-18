@@ -35,3 +35,7 @@ mitsulab の連作《森羅百景》の作品を、3D の館で見る・読む�
 他者の素材（CC0・CC BY・CC BY-SA・VOICEVOX・OFL の書体など）は、上の「出典とライセンス」のとおり、それぞれの条件に従います。
 
 © mitsulab（さいたま市）　official@mitsulab.jp
+
+### 館外樹皮の描画素材（2026-10-18）
+
+Poly Haven [Japanese Zelkova Bark](https://polyhaven.com/a/japanese_zelkova_bark) / Charlotte Baglioni / CC0 1.0。既存の氷川素材を色512px・OpenGL法線256pxへ縮小（JPEG・PNG）、館外の創作の樹木の表面へ使用。館外樹木全体が特定の実測ケヤキの復元という意味ではありません。
