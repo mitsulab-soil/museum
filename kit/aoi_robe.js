@@ -1,4 +1,5 @@
 /* 碧のローブの裾を、布のように揺らす ── aoi_robe.js（2026-10-13・v2 2026-10-14・v2.1 同日）
+   v2.3（11 人「後ろ姿のローブが一つの塊で振れる」）：鎖ごとに戻る力を少しずつ変える（となりと滑らかにつながる 0.75〜1.25 倍）＝裾が一枚の板でなく波打つ。
    v2.2（11 人「裾が風船のようにふくらむ」）：脚に寄せる量 0.85→0.7・脚の側へ移す幅を少し狭く。
    v2.1（11 人「後ろから見た裾が硬い」）：裾の下の段ほど戻る力を弱め（下 3 段 2〜3 割）、速さが変わるときの慣性を 7 割→7 割 8 分に。
    歩くときのなびきを、進む向きの後ろ側の布ほど大きく（後ろの裾が遅れて揺れる。前の裾は脚に押されるので小さめのまま）。
@@ -147,6 +148,7 @@ export class AoiRobe {
   update(dt, { groundY = null, live = true } = {}) {
     if (!this.ok) return; dt = Math.min(dt, .05); if (dt <= 0) return; this.t += dt;
     const N = this.N, M = this.M;
+    this._kv ||= [...Array(N)].map((_, a) => 1 + .25 * Math.sin(a * 2.1 + 1.3) * Math.cos(a * .9));   // v2.3：鎖ごとの戻る力（滑らかに変わる）
     // 前のこまの静止の位置（この区間で、腰がどれだけ動いたか）
     for (let a = 0; a < N; a++) for (let j = 0; j < M; j++) this.t0[a][j].copy(this.tg[a][j]);
     this.hips.updateWorldMatrix(true, false);
@@ -175,7 +177,7 @@ export class AoiRobe {
         o.subVectors(p, Tb); const op = this.pp[a][j], f = j / (M - 1);   // 静止の位置からのずれ（前のずれ＝op）
         const vx = (o.x - op.x) * damp, vy = (o.y - op.y) * damp, vz = (o.z - op.z) * damp; op.copy(o);
         o.x += vx - acc.x * inert + wx * f; o.y += vy - acc.y * inert + g; o.z += vz - acc.z * inert + wz * f;
-        o.multiplyScalar(1 - K[Math.min(j, K.length - 1)]);
+        o.multiplyScalar(1 - Math.min(.9, K[Math.min(j, K.length - 1)] * (j > 2 ? this._kv[a] : 1)));
         p.addVectors(Tn, o); this._tb[a][j].copy(Tn);
       }
       for (let it = 0; it < 3; it++) {
