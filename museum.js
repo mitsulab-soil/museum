@@ -1988,7 +1988,7 @@ function otoPlace(st) {   // その場所の立ち位置と、見る向き
 }
 function otoLines(st) {
   const O = T.oto || {};
-  if (st.t === "entry") return [O.hello, T.outside[0], O.keys];
+  if (st.t === "entry") return [T.outside[0], T.outside[1], O.hello, O.keys];   // 2026-10-20 夜：あいさつ→名乗り→音で巡る館の説明
   if (st.t === "lobby") return T.lobby;
   if (st.t === "exh0") return [O.exh];
   if (st.t === "exh") { const L = (T.anim || {})[st.it.a.id] || {}; return [L.work, L.come]; }
