@@ -17,7 +17,9 @@ import { createHolo } from "./holo.js?v=20261014p2";
 // 碧の動きと表情（共通の部品 AoiMotion の写し・2026-10-13）。kit/ は 12_ブランド/_共通3D/kit/ の aoi_motion.js・aoi_mocap.js・aoi_mocap.json・aoi_robe.js の写し
 import { AoiMotion } from "./kit/aoi_motion.js";
 
-const M = window.MUSEUM, T = M.tour, VOICE = window.VOICE || {}, NAMES = M.names;   // 表示する名前は names.json だけから
+const M = window.MUSEUM, T = M.tour, NAMES = M.names;   // 表示する名前は names.json だけから
+// 碧の声の表（data/voice.js・約 0.6 MB）は起動の道すじから外し、あとから届く（2026-10-23 起動 5 秒）。届く前に話すときは少し待つ
+const VOICE_P = window.VOICE ? Promise.resolve() : new Promise(r => { window.__voiceReady = r; setTimeout(r, 8000); }).then(() => { window.VOICE = window.VOICE || {}; });
 window.__muBoot = true;
 const $ = id => document.getElementById(id);
 const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -715,7 +717,7 @@ function makeBay(r, k) {
 }
 
 // 題字と作品を近づいたときに作る（遠のいたら捨てる）
-const loader = { q: [], busy: 0 };
+const loader = { q: [], busy: 0, hold: true };   // hold：歩けるようになるまで、部屋の作品の図版は読まない（2026-10-23 起動 5 秒。近い部屋から順に遅れて読む）
 function bayTitle(bay) {
   const { k, r } = bay;
   const t = textPlane(5.6, .8, (g, w, h) => {
@@ -790,6 +792,7 @@ function unhang(bay) {
   bay.loaded = false;
 }
 function pump() {
+  if (loader.hold) return;
   while (loader.busy < 4 && loader.q.length) {
     const [bay, sl] = loader.q.shift(); if (!bay.near || sl.mesh || sl.loading) continue;
     loader.busy++; sl.loading = true; hang(bay, sl).catch(e => console.warn("図版を読めませんでした", sl.w.f, e?.type || e)).finally(() => { sl.loading = false; loader.busy--; pump(); });
@@ -1002,9 +1005,10 @@ function setTalking(on) {
   }, 4200);
 }
 function speakLine(text) {
+  if (!window.VOICE) return VOICE_P.then(() => speakLine(text));
   return new Promise(res => {
     SP.cur = text; $("say").textContent = text; A.talkT = 0; setTalking(true); window.__said = (window.__said || []).concat([text]).slice(-30);
-    const v = VOICE[text];
+    const v = (window.VOICE || {})[text];
     const done = () => { clearTimeout(SP.timer); SP.timer = null; SP.resolve = null; SP.playing = false; setTalking(false); AUD.setDuck(1); AM?.stopSpeaking(); res(); };
     // 口・身ぶり・視線（AoiMotion）：声の再生位置に合わせる。声を切っているときは字幕の長さで
     if (AM) { const el = AUD.voice; AM.speak(v && voiceOn() ? { kana: v.kana, dur: v.dur, clock: () => el.currentTime, level: () => clamp(AUD.level() * 7, 0, 1) } : { text, dur: est(text) / 1000 }); }
@@ -1959,7 +1963,8 @@ requestAnimationFrame(tick);
 const resumeAt = store.get("smm-at", null);
 const resumeOK = !!resumeAt && (() => { space = "museum"; return walkable(resumeAt[0], resumeAt[1]) && region(resumeAt[0], resumeAt[1]).kind === "room"; })();
 function resumeGo() { intro.tok++; space = "museum"; teleport(new THREE.Vector3(resumeAt[0], 0, resumeAt[1]), null, () => { me.yaw = resumeAt[2]; freeTalk([T.idle.hello]); }); }
-warm.then(() => { prog(100); enterWalk(); showHint(); });
+warm.then(() => { prog(100); enterWalk(); showHint();
+  requestAnimationFrame(() => requestAnimationFrame(() => { loader.hold = false; const cp = camera.position; loader.q.sort((a, b) => Math.hypot(a[0].center.x - cp.x, a[0].center.z - cp.z) - Math.hypot(b[0].center.x - cp.x, b[0].center.z - cp.z)); pump(); })); });
 // Architectural detail starts after an interactive frame; it does not join the boot gate.
 let architectureRequested=false;
 function requestArchitecture(){if(architectureRequested)return;architectureRequested=true;setTimeout(()=>{(window.requestIdleCallback||((f)=>setTimeout(f,24)))(()=>import('./museum-architecture.js?v=20261018-1').then(m=>m.install({scene,world,mats:{woodMat,darkWood,frameMat,brassMat,giltMat},floors,bays,E,STEPS,PLAZA_Y})).catch(e=>console.warn('館の細部を読めませんでした',e)),{timeout:500});},1200);}
