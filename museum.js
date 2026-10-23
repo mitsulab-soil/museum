@@ -1355,6 +1355,8 @@ async function loadAoi() {
     catch (e) { console.warn("AoiMotion を使えませんでした（館の動きで続けます）：", e?.message ?? e); AM = null; }
     aoiJump();
     window.__aoi = { vrm, aoi, A };
+    // 碧の材質は、出る前に並行で組み立てる（はじめて映るこまで止まらない・2026-10-23）
+    try { A.hold = true; aoi.visible = true; await renderer.compileAsync(aoi, camera, scene); } catch (e) {} A.hold = false;
   } catch (e) { console.warn("碧の姿を読み込めませんでした（声と字幕で案内します）：", e?.message ?? e); }
 }
 function safeSpot(p) {   // 通れる所へ寄せる（壁の中・壁ぎわ・台の上の目的地を、いちばん近い通れる点に）
@@ -1391,6 +1393,7 @@ function followSpot() {
 }
 function aoiTick(dt) {
   if (!vrm) return;
+  if (A.hold) { aoi.visible = false; return; }
   if (mode !== "walk") { aoi.visible = false; return; }
   // 2026-10-09 本人「碧が壁に向かって歩き続け、こちらが動いてもついてこない」：
   //   原因＝目的地へまっすぐ引っぱるだけで、壁の向こう（となりの部屋・扉の外）や壁ぎわの通れない所が目的地になると、壁に押しつけられたまま止まっていた。
@@ -1509,7 +1512,8 @@ function amTick(dt, wt, watching, lookWork) {
 let aoiMats = null;
 function aoiOpacity(o) {
   if (!aoiMats) { aoiMats = []; aoi.traverse(m => { if (m.isMesh) for (const mt of [].concat(m.material)) { aoiMats.push([mt, mt.transparent, mt.depthWrite]); } }); }
-  for (const [mt, tr, dw] of aoiMats) { mt.transparent = o < 1 ? true : tr; mt.opacity = o; mt.depthWrite = o < 1 ? o > .6 : dw; mt.needsUpdate = true; }
+  // 2026-10-23：現れる途中も奥行きを書く（体の奥の面が透けて上半身だけ濃く見えた）。材質の組み直しは、透けの切りかえのときだけ
+  for (const [mt, tr, dw] of aoiMats) { const t = o < 1 ? true : tr; if (mt.transparent !== t) { mt.transparent = t; mt.needsUpdate = true; } mt.opacity = o; mt.depthWrite = o < 1 ? (o > .02 || dw) : dw; }
 }
 // 体の動き：《Feel Hikawa》第2回の aoiPose を借り、ひじの向きだけ逆にした（_dev/check.mjs が毎回測る）
 const CUR = {}, CURV = {};
@@ -1957,7 +1961,9 @@ function prog(p) { $("prog").querySelector("i").style.width = Math.round(p) + "%
 placeStart(); resize(); camera.position.copy(me.pos); camera.rotation.set(me.pitch, me.yaw, 0, "YXZ"); setZone(zoneOf(), true); streamBays();
 
 prog(20);
-const warm = Promise.all([new Promise(r => setTimeout(r, 50)), TX.ready, loadAoi()]);
+// 2026-10-23 本人「見える部分は表示してください」：館（見える部分）がそろったら歩けるようにする。碧はあとから網目で現れる（PC は館の質感がそろってから 0.8 秒まで待つ・スマホは待たない）
+const aoiP = loadAoi();
+const warm = Promise.all([new Promise(r => setTimeout(r, 50)), TX.ready.then(() => Promise.race([aoiP, sleep(isTouch ? 0 : 800)]))]);
 // 画面外の全展示まで一度にコンパイルせず、rendererが実際に見える材質から用意する。
 requestAnimationFrame(tick);
 const resumeAt = store.get("smm-at", null);
