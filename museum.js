@@ -15,7 +15,7 @@ import { LIB, libWalkable, buildLibrary, createReader, bookList } from "./librar
 import { createExhibit } from "./anim3d.js";
 import { createHolo } from "./holo.js?v=20261014p2";
 // 碧の動きと表情（共通の部品 AoiMotion の写し・2026-10-13）。kit/ は 12_ブランド/_共通3D/kit/ の aoi_motion.js・aoi_mocap.js・aoi_mocap.json・aoi_robe.js の写し
-import { AoiMotion } from "./kit/aoi_motion.js";
+import { AoiMotion, inferGestures } from "./kit/aoi_motion.js?v=61";
 
 const M = window.MUSEUM, T = M.tour, NAMES = M.names;   // 表示する名前は names.json だけから
 // 碧の声の表（data/voice.js・約 0.6 MB）は起動の道すじから外し、あとから届く（2026-10-23 起動 5 秒）。届く前に話すときは少し待つ
@@ -1004,6 +1004,14 @@ function setTalking(on) {
     fold(true); SP.autoFolded = true;
   }, 4200);
 }
+// 2026-10-25 碧の自然さ（採点「案内の始めの手の動きが硬い」）：話しはじめに、前で重ねた両手が組んだまま胸の前へ上がっていた／両腕を左右対称に開く身ぶりが操り人形に見えた
+//   → 左右対称の形の身ぶり（大きい・丸い・長い・平ら）は片手で手のひらを上に差し出す形に置きかえ、身ぶりの語がない 2.2 秒以上の行は二行に一度、句の頭の少しあとで片手を差し出す（重ねた手がほどけてから話す）
+function aoiGestures(text, kana, dur) {
+  let g = []; try { g = inferGestures({ text, kana, dur }); } catch (e) { return []; }
+  g = g.map(x => x.type === "iconic" && !["small", "tall"].includes(x.shape) ? { t: x.t, type: "metaphoric", shape: "present", hand: (aoiGestures.h = !aoiGestures.h) ? "right" : "left", hold: .8, big: true } : x);
+  if (!g.length && dur > 2.2 && (aoiGestures.n = (aoiGestures.n || 0) + 1) % 2) g.push({ t: Math.min(.9, dur * .25), type: "metaphoric", shape: "present", hand: aoiGestures.n % 4 === 1 ? "right" : "left", hold: .7, big: true });
+  return g;
+}
 function speakLine(text) {
   if (!window.VOICE) return VOICE_P.then(() => speakLine(text));
   return new Promise(res => {
@@ -1011,7 +1019,7 @@ function speakLine(text) {
     const v = (window.VOICE || {})[text];
     const done = () => { clearTimeout(SP.timer); SP.timer = null; SP.resolve = null; SP.playing = false; setTalking(false); AUD.setDuck(1); AM?.stopSpeaking(); res(); };
     // 口・身ぶり・視線（AoiMotion）：声の再生位置に合わせる。声を切っているときは字幕の長さで
-    if (AM) { const el = AUD.voice; AM.speak(v && voiceOn() ? { kana: v.kana, dur: v.dur, clock: () => el.currentTime, level: () => clamp(AUD.level() * 7, 0, 1) } : { text, dur: est(text) / 1000 }); }
+    if (AM) { const el = AUD.voice; AM.speak(v && voiceOn() ? { kana: v.kana, dur: v.dur, clock: () => el.currentTime, level: () => clamp(AUD.level() * 7, 0, 1), gesture: aoiGestures(text, v.kana, v.dur) } : { text, dur: est(text) / 1000, gesture: aoiGestures(text, "", est(text) / 1000) }); }
     SP.resolve = done;
     const timed = ms => { SP.rest = ms; SP.t0 = performance.now(); if (!SP.paused) SP.timer = setTimeout(done, ms); };
     if (v && voiceOn()) {
@@ -1053,7 +1061,12 @@ function talk(lines, acts) { talkKind = ""; curActs = () => acts; setActs(acts);
 // ---------------------------------------------------------------- 見る人（カメラ）の動き
 const me = { pos: new THREE.Vector3(0, EYE, 8.5), yaw: 0, pitch: -.02, path: [], speed: 0, faceTo: null, onArrive: null };
 const keys = new Set();
-function setFov() { const a = innerWidth / innerHeight; camera.fov = a < .8 ? 72 : a < 1.2 ? 66 : 58; camera.aspect = a; camera.updateProjectionMatrix(); }
+// 2026-10-26 375 の採点 P2「字幕が碧の体に重なる」：狭い画面では、下の字幕の高さのぶん絵の中心を上へずらす（見える範囲は同じ・押す判定も同じ投影で合う）
+let _vOff = -1;
+function setFov() { const a = innerWidth / innerHeight; camera.fov = a < .8 ? 72 : a < 1.2 ? 66 : 58; camera.aspect = a;
+  const g = document.getElementById("guide"), gh = innerWidth <= 760 && g && !g.hidden && !g.classList.contains("folded") ? Math.min(innerHeight * .2, g.getBoundingClientRect().height + 12) : 0, k = Math.round(gh * .8);
+  _vOff = k; if (k > 0) camera.setViewOffset(innerWidth, innerHeight + k, 0, k, innerWidth, innerHeight); else camera.clearViewOffset(); camera.updateProjectionMatrix(); }
+try { new ResizeObserver(() => { const g = document.getElementById("guide"); const gh = innerWidth <= 760 && g && !g.hidden && !g.classList.contains("folded") ? Math.min(innerHeight * .2, g.getBoundingClientRect().height + 12) : 0; if (Math.round(gh * .8) !== _vOff) setFov(); }).observe(document.getElementById("guide")); } catch (e) {}
 function resize() { renderer.setSize(innerWidth, innerHeight); setFov(); drawMini(); }
 addEventListener("resize", resize);
 function route(to, toWarp, from = me.pos) {
@@ -1351,7 +1364,8 @@ async function loadAoi() {
     v.scene.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)) { if (!m || !m.map || !m.emissive || m.userData?.aoiOverlay) continue; try { if (!m.emissiveMap) m.emissiveMap = m.map; m.emissive.setRGB(.2, .2, .2); m.needsUpdate = true; } catch (e) {} } });
     A.springs = (v.springBoneManager?.joints ? [...v.springBoneManager.joints] : []).map(j => ({ j, g: j.settings.gravityDir.clone(), p: j.settings.gravityPower }));
     // 2026-10-13：碧の体・顔・口・まばたき・揺れもの・裾は共通の部品（AoiMotion v4）。館に固有の仕草（手を差し出す・とまったら引き寄せる・手を振る・かがむ）だけを上に重ねる
-    try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY, faceLight: .55 }); A.springs = null; }
+    try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY, faceLight: .55 }); A.springs = null;
+      { const gp = AM._gPose.bind(AM); AM._gPose = (part, sd, out) => { const r = gp(part, sd, out); if (part.g.big && part.g.type === "metaphoric" && part.g.shape !== "contrast") { out.p.y += .09; out.p.z += .12; out.p.x += (sd === "left" ? 1 : -1) * .06; out.shape = "flat"; } return r; }; } }   // 差し出す手を肘から前へ（このアプリの big の身ぶりだけ・共通部品は変えない）
     catch (e) { console.warn("AoiMotion を使えませんでした（館の動きで続けます）：", e?.message ?? e); AM = null; }
     aoiJump();
     window.__aoi = { vrm, aoi, A };
