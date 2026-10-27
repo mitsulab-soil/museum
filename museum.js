@@ -1364,7 +1364,7 @@ async function loadAoi() {
     v.scene.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)) { if (!m || !m.map || !m.emissive || m.userData?.aoiOverlay) continue; try { if (!m.emissiveMap) m.emissiveMap = m.map; m.emissive.setRGB(.2, .2, .2); m.needsUpdate = true; } catch (e) {} } });
     A.springs = (v.springBoneManager?.joints ? [...v.springBoneManager.joints] : []).map(j => ({ j, g: j.settings.gravityDir.clone(), p: j.settings.gravityPower }));
     // 2026-10-13：碧の体・顔・口・まばたき・揺れもの・裾は共通の部品（AoiMotion v4）。館に固有の仕草（手を差し出す・とまったら引き寄せる・手を振る・かがむ）だけを上に重ねる
-    try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY, faceLight: .55 }); A.springs = null;
+    try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY, faceLight: .55, uprightWeight: .2 }); A.springs = null;
       { const gp = AM._gPose.bind(AM); AM._gPose = (part, sd, out) => { const r = gp(part, sd, out); if (part.g.big && part.g.type === "metaphoric" && part.g.shape !== "contrast") { out.p.y += .09; out.p.z += .12; out.p.x += (sd === "left" ? 1 : -1) * .06; out.shape = "flat"; } return r; }; } }   // 差し出す手を肘から前へ（このアプリの big の身ぶりだけ・共通部品は変えない）
     catch (e) { console.warn("AoiMotion を使えませんでした（館の動きで続けます）：", e?.message ?? e); AM = null; }
     aoiJump();
@@ -1495,6 +1495,7 @@ function aoiTick(dt) {
 // 2026-10-13：碧の体は共通の部品（AoiMotion v4）。館に固有の仕草だけを、部品が組んだ姿勢の上に重ねる。
 //   見る先＝話題の作品／抜け出た生きもの／見る人。指す＝作品の話の 2 文目。表情＝生きものが出ているあいだは笑み、手にとまった瞬間は少し大きく。
 //   重ねる仕草（2026-10-09 本人「碧が動物との触れ合いをもっと楽しそうに」のまま）：左手を差し出す → とまったら胸の前へ引き寄せる／帰るときは右手を振る／野うさぎ・鷺がそばに来たら少しかがむ
+const _idle = { t: 3, until: 0, pt: -1, yaw: 0, v: new THREE.Vector3() };
 const _amLook = new THREE.Vector3(), _amE = new THREE.Euler(), _amQ = new THREE.Quaternion();
 function amPose(name, x, y, z, w) {   // その骨を、決めた角度へ w の割合だけ寄せる
   if (w <= .001) return; const b = vrm.humanoid.getNormalizedBoneNode(name); if (!b) return;
@@ -1504,7 +1505,12 @@ function amTick(dt, wt, watching, lookWork) {
   const live = !RM, t = performance.now() / 1000;
   if (lookWork) AM.lookAt(_amLook.set(A.look.x, 1.5 + groundY(A.look.x, A.look.z), A.look.z));
   else if (watching) AM.lookAt(_amLook.copy(wt.pos));
-  else AM.lookAt(null);
+  else {   // 2026-10-27 採点「立ち姿が硬い・顔が正面で固まる」：黙って立つあいだ、4〜7 秒に一度、館の中（作品・天井・床）へ目と顔を 1.5〜2.5 秒向け、ときどき軽く指す
+    _idle.t -= dt;
+    if (_idle.t <= 0) { _idle.t = 4 + Math.random() * 3; _idle.until = 2.4 + Math.random(); const a = AM.yaw + (Math.random() - .5) * 2.2, d = 2.5 + Math.random() * 3, P = AM.pos || aoi.position;
+      _idle.v.set(P.x + Math.sin(a) * d, (Math.random() < .3 ? 3.2 : .4 + Math.random() * 1.4) + groundY(P.x, P.z), P.z + Math.cos(a) * d); _idle.yaw = Math.atan2(_idle.v.x - P.x, _idle.v.z - P.z); _idle.pt = live && Math.random() < .6 ? .6 : -1;   /* 指すのは、体と顔をその向きへ回してから（0.6 秒後） */ if (Math.random() < .5) AM.express(Math.random() < .5 ? "warm" : "calm", .7, 2.2); }
+    _idle.until -= dt; AM.lookAt(_idle.until > 0 ? _idle.v : null); if (_idle.pt > 0) { _idle.pt -= dt; if (_idle.pt <= 0) AM.point(_idle.v, 1.8); } if (_idle.until > 0 && (_idle.pt > -1 || Math.abs(((_idle.yaw - AM.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > .4)) AM.faceTo(_idle.yaw);   // 大きく横を見るときは体ごと向く
+  }
   if (A.talkT < .4) A._pted = false;
   if (live && A.look && A.point && A.talkT > .5 && !A._pted) { A._pted = true; AM.point(new THREE.Vector3(A.look.x, 1.4 + groundY(A.look.x, A.look.z), A.look.z), 2.6); }
   if (A.gig != null && A.gig < dt * 1.5) AM.express("smile", 1, 1.6);          // とまった瞬間：小さく笑う
