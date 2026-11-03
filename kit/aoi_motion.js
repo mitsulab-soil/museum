@@ -1,4 +1,5 @@
 /* 碧（依代）の自然な動きと表情 ── aoi_motion.js（v6.1・2026-10-25 待つ姿と手の上げ下ろし）
+   v6.2・2026-11-03 碧が出る瞬間の止まりを無くす：warmAoi・aoiYield を足した。動きと表情は v6.1 のまま
    v6.1（採点「待つあいだ腕を体の前に浮かせて止まる」氷川・川越 73／Museum「案内の始めの手が硬い」／HP「手をかざしたまま小さく揺れ続ける・肩肘手首の遅れ」）：
    - 待つあいだの腕は体の横へ下ろす：肘を少し曲げ、手首は太ももの横・手のひらは腿へ（二関節の IK で寄せる）。手の的は肩にばねで遅れてついていく
      （重心の移し替え・息で肩が動くと、肘・手首が少し遅れて揺れ、行き過ぎずに静まる）。
@@ -246,6 +247,51 @@ export const EMOTIONS = {
 // 2) AoiCheek：目の下・外寄りの頬を、ごく小さく（最大 1.6 mm）上と前へふくらませる。法線は変えない（陰の付き方を変えない＝不気味にしない）。
 // v5.2（2026-10-14）：腕を下ろした休めの形（AoiMotion の手続きの休めの形と同じ値）。読み込んだ直後の VRM はひな形の姿勢＝両腕を真横に広げた T ポーズで、
 // 遅い回線・遅い端末では動きの部品が届くまで数秒そのまま見える（テストプレー 10-14 夜「壊れた人形」「不気味」）。シーンに置く前に、これを一度呼ぶ。
+/* v6.2（2026-11-03 本人「全て 1 秒以内に。動いている時も」）：碧が出る瞬間の止まり（200〜600 ms）を分ける。
+   aoiYield()＝次のこままで待つ（重い手順のあいだに挟む）。
+   warmAoi(renderer, root, camera, scene)＝見せる前に、テクスチャを 1 こま 1〜2 枚ずつ GPU へ送り、材質のシェーダーを 1 こまに数個ずつ組み、
+   影（奥行きの材質）も小さな的に一度だけ描いて組ませる。碧の見た目と動きは変えない（何も描き足さない・材質も変えない）。 */
+export const aoiYield = () => new Promise(r => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => setTimeout(r, 0)) : setTimeout(r, 16)));
+export async function warmAoi(renderer, root, camera, scene, { budget = 8 } = {}) {
+  if (!renderer || !root) return;
+  const now = () => performance.now(), meshes = [], tex = new Set();
+  root.traverse(o => { if (!o.isMesh) return; meshes.push(o); for (const m of [].concat(o.material)) { if (!m) continue; for (const k in m) { const v = m[k]; if (v && v.isTexture) tex.add(v); } if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k]?.value; if (v && v.isTexture) tex.add(v); } } });
+  // ① テクスチャ：1 こまに budget ms まで
+  let t0 = now(); for (const t of tex) { if (now() - t0 > budget) { await aoiYield(); t0 = now(); } try { renderer.initTexture(t); } catch { } }
+  await aoiYield();
+  // ② 材質：網ごとに組む（同じシェーダーは一度だけ組まれる）。いちどに組むのは数個まで
+  // 見せないまま組む（root.visible を true にすると、待つあいだの毎こまの描画が同じシェーダーを止まりながら組んでしまう）
+  const vis = root.visible;
+  for (let i = 0; i < meshes.length; i += 4) {
+    try { await Promise.all(meshes.slice(i, i + 4).map(o => renderer.compileAsync ? renderer.compileAsync(o, camera, scene) : renderer.compile(o, camera, scene))); } catch { }
+    await aoiYield();
+  }
+  // ③ 影：碧だけを小さな的に影つきで一度描く（奥行きの材質のシェーダーを組ませる）。見る人の画面には出ない
+  if (renderer.shadowMap?.enabled) {
+    try {
+      const lights = []; scene.traverse(o => { if (o.isLight && o.castShadow && o.visible) lights.push(o); });
+      if (lights.length) {
+        const rt = new THREE.WebGLRenderTarget(4, 4), prevRT = renderer.getRenderTarget(), auto = renderer.shadowMap.autoUpdate, nu = renderer.shadowMap.needsUpdate;
+        const tmp = new THREE.Scene(), parent = root.parent, ov = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+        tmp.overrideMaterial = ov;
+        const L = lights[0], DL = new THREE.DirectionalLight(); DL.castShadow = true; DL.shadow.mapSize.set(16, 16); DL.position.set(0, 10, 0); DL.target.position.set(0, 0, 0);
+        if (L.isPointLight) { const PL = new THREE.PointLight(); PL.castShadow = true; PL.shadow.mapSize.set(16, 16); tmp.add(PL); } else if (L.isSpotLight) { const SL = new THREE.SpotLight(); SL.castShadow = true; SL.shadow.mapSize.set(16, 16); tmp.add(SL); } else tmp.add(DL, DL.target);
+        const idx = parent ? parent.children.indexOf(root) : -1;
+        tmp.add(root);   // 位置・向き・大きさ（root の中の値）はそのまま。影の材質の組み方は場所によらない
+        renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = true;
+        root.visible = true; const mv = meshes.map(o => o.visible);
+        for (let i = 0; i < meshes.length; i++) { if (!mv[i] || !meshes[i].castShadow) continue; meshes.forEach((o, j) => { o.visible = j === i; }); const t1 = now(); renderer.setRenderTarget(rt); renderer.render(tmp, camera); renderer.setRenderTarget(prevRT); if (now() - t1 > 2) { root.visible = false; await aoiYield(); root.visible = true; } }
+        meshes.forEach((o, j) => { o.visible = mv[j]; }); root.visible = vis;
+        renderer.setRenderTarget(prevRT); renderer.shadowMap.autoUpdate = auto; renderer.shadowMap.needsUpdate = nu || !auto;
+        if (parent) { parent.add(root); if (idx >= 0) { parent.children.pop(); parent.children.splice(idx, 0, root); } } else tmp.remove(root);
+        root.updateMatrixWorld(true);
+        for (const o of tmp.children.slice()) { o.shadow?.dispose?.(); tmp.remove(o); } rt.dispose(); ov.dispose();
+        await aoiYield();
+      }
+    } catch (e) { console.warn("warmAoi 影", e); }
+  }
+  root.visible = vis;
+}
 export function relaxPose(vrm) {
   const N = n => vrm.humanoid.getNormalizedBoneNode(n);
   for (const sd of ["left", "right"]) { const sg = sd === "left" ? 1 : -1;

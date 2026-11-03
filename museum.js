@@ -15,7 +15,7 @@ import { LIB, libWalkable, buildLibrary, createReader, bookList } from "./librar
 import { createExhibit } from "./anim3d.js?v=20261103";
 import { createHolo } from "./holo.js?v=20261014p2";
 // 碧の動きと表情（共通の部品 AoiMotion の写し・2026-10-13）。kit/ は 12_ブランド/_共通3D/kit/ の aoi_motion.js・aoi_mocap.js・aoi_mocap.json・aoi_robe.js の写し
-import { AoiMotion, inferGestures } from "./kit/aoi_motion.js?v=61";
+import { AoiMotion, inferGestures, warmAoi, aoiYield } from "./kit/aoi_motion.js?v=62";
 
 const M = window.MUSEUM, T = M.tour, NAMES = M.names;   // 表示する名前は names.json だけから
 // 碧の声の表（data/voice.js・約 0.6 MB）は起動の道すじから外し、あとから届く（2026-10-23 起動 5 秒）。届く前に話すときは少し待つ
@@ -1356,6 +1356,7 @@ async function loadAoi() {
     const ld = new GLTFLoader(); ld.setMeshoptDecoder(MeshoptDecoder); ld.register(p => new V.VRMLoaderPlugin(p));
     const g = await ld.loadAsync(M.aoi, e => { if (e.total) prog(60 + 35 * e.loaded / e.total); });
     const v = g.userData.vrm; if (!v) throw new Error("VRM ではない");
+    await aoiYield();   // 11-03 本人「動いている時も 1 秒以内」：重い手順のあいだで一こま譲る
     V.VRMUtils.removeUnnecessaryVertices(g.scene); (V.VRMUtils.combineSkeletons ?? V.VRMUtils.removeUnnecessaryJoints)?.(g.scene); V.VRMUtils.rotateVRM0(v);
     v.scene.traverse(o => { o.frustumCulled = false; });
     aoi = new THREE.Group(); aoi.add(v.scene); vrm = v;   // 2026-11-03：館に入れるのは組み立てのあと（出るときに止まらない）
@@ -1378,7 +1379,7 @@ async function loadAoi() {
     aoiJump();
     window.__aoi = { vrm, aoi, A };
     // 碧の材質は、出る前に並行で組み立てる（はじめて映るこまで止まらない・2026-10-23）
-    try { A.hold = true; aoi.visible = true; await compileWithFace(aoi); } catch (e) {} scene.remove(faceStub); scene.add(aoi); A.hold = false;
+    try { A.hold = true; aoi.visible = true; await warmAoi(renderer, aoi, camera, scene); } catch (e) {} scene.remove(faceStub); scene.add(aoi); A.hold = false;   // 11-03：テクスチャ・シェーダー・影を少しずつ（faceStub が碧の顔の光の代わりに居るまま組む）
   } catch (e) { console.warn("碧の姿を読み込めませんでした（声と字幕で案内します）：", e?.message ?? e); }
 }
 function safeSpot(p) {   // 通れる所へ寄せる（壁の中・壁ぎわ・台の上の目的地を、いちばん近い通れる点に）
