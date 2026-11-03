@@ -474,7 +474,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 (function(){
   var warn=document.getElementById('startWarn');
   function show(html){ warn.innerHTML=html; warn.hidden=false; document.getElementById('prog').hidden=true; }
-  if(location.protocol==='file:'){ show('このページは、ファイルを直接ひらくと館を組み立てられません。同じフォルダの<b>「ひらく.command」</b>をダブルクリックしてください。小さなサーバを立てて、ブラウザで館をひらきます。'); return; }
+  if(location.protocol==='file:'){ show('このページは、ファイルを直接ひらくと館を組み立てられません。ウェブのページとしてひらいてください。'); return; }
   setTimeout(function(){ if(!window.__muBoot) show('館を組み立てる道具（three.js）が届いていません。通信を確かめて、ページを読み込み直してください。'); },20000);
 })();
 </script>
