@@ -252,7 +252,7 @@ export const EMOTIONS = {
    warmAoi(renderer, root, camera, scene)＝見せる前に、テクスチャを 1 こま 1〜2 枚ずつ GPU へ送り、材質のシェーダーを 1 こまに数個ずつ組み、
    影（奥行きの材質）も小さな的に一度だけ描いて組ませる。碧の見た目と動きは変えない（何も描き足さない・材質も変えない）。 */
 export const aoiYield = () => new Promise(r => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => setTimeout(r, 0)) : setTimeout(r, 16)));
-export async function warmAoi(renderer, root, camera, scene, { budget = 8 } = {}) {
+export async function warmAoi(renderer, root, camera, scene, { budget = 8, whole = false, offscreen = false } = {}) {   // whole＝root がまだ場面の外で、root の中の光（顔の補助光）も数えて組むとき／offscreen＝アプリが描き先（ぼかしなど）へ描くとき、その形で組む
   if (!renderer || !root) return;
   const now = () => performance.now(), meshes = [], tex = new Set();
   root.traverse(o => { if (!o.isMesh) return; meshes.push(o); for (const m of [].concat(o.material)) { if (!m) continue; for (const k in m) { const v = m[k]; if (v && v.isTexture) tex.add(v); } if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k]?.value; if (v && v.isTexture) tex.add(v); } } });
@@ -261,12 +261,15 @@ export async function warmAoi(renderer, root, camera, scene, { budget = 8 } = {}
   await aoiYield();
   // ② 材質：網ごとに組む（同じシェーダーは一度だけ組まれる）。いちどに組むのは数個まで
   // 見せないまま組む（root.visible を true にすると、待つあいだの毎こまの描画が同じシェーダーを止まりながら組んでしまう）
-  const vis = root.visible;
-  for (let i = 0; i < meshes.length; i += 4) {
+  const vis = root.visible, offRT = offscreen ? new THREE.WebGLRenderTarget(1, 1) : null, rt0 = renderer.getRenderTarget(); if (offRT) renderer.setRenderTarget(offRT);
+  if (whole && !root.parent) { root.visible = true; const LT = []; root.traverse(o => { if (o.isLight) { LT.push([o, o.visible]); o.visible = true; } });   // 顔の補助光は碧が見えないあいだ消えている＝見えたときの光の数で組む
+    try { await renderer.compileAsync(root, camera, scene); } catch { } for (const [o, v] of LT) o.visible = v; root.visible = vis; await aoiYield(); }
+  else for (let i = 0; i < meshes.length; i += 4) {
     try { await Promise.all(meshes.slice(i, i + 4).map(o => renderer.compileAsync ? renderer.compileAsync(o, camera, scene) : renderer.compile(o, camera, scene))); } catch { }
     await aoiYield();
   }
-  // ③ 影：碧だけを小さな的に影つきで一度描く（奥行きの材質のシェーダーを組ませる）。見る人の画面には出ない
+  if (offRT) { renderer.setRenderTarget(rt0); offRT.dispose(); }
+  // ③ 影：碧だけを小さな的に影つきで一枚ずつ描く（奥行きの材質のシェーダーを組ませる）。見る人の画面には出ない
   if (renderer.shadowMap?.enabled) {
     try {
       const lights = []; scene.traverse(o => { if (o.isLight && o.castShadow && o.visible) lights.push(o); });
@@ -274,15 +277,15 @@ export async function warmAoi(renderer, root, camera, scene, { budget = 8 } = {}
         const rt = new THREE.WebGLRenderTarget(4, 4), prevRT = renderer.getRenderTarget(), auto = renderer.shadowMap.autoUpdate, nu = renderer.shadowMap.needsUpdate;
         const tmp = new THREE.Scene(), parent = root.parent, ov = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
         tmp.overrideMaterial = ov;
-        const L = lights[0], DL = new THREE.DirectionalLight(); DL.castShadow = true; DL.shadow.mapSize.set(16, 16); DL.position.set(0, 10, 0); DL.target.position.set(0, 0, 0);
-        if (L.isPointLight) { const PL = new THREE.PointLight(); PL.castShadow = true; PL.shadow.mapSize.set(16, 16); tmp.add(PL); } else if (L.isSpotLight) { const SL = new THREE.SpotLight(); SL.castShadow = true; SL.shadow.mapSize.set(16, 16); tmp.add(SL); } else tmp.add(DL, DL.target);
+        const L = lights[0] || {}, DL = new THREE.DirectionalLight(); DL.castShadow = true; DL.shadow.mapSize.set(16, 16); DL.position.set(0, 10, 0); DL.target.position.set(0, 0, 0);
+        if (!lights.length) { } else if (L.isPointLight) { const PL = new THREE.PointLight(); PL.castShadow = true; PL.shadow.mapSize.set(16, 16); tmp.add(PL); } else if (L.isSpotLight) { const SL = new THREE.SpotLight(); SL.castShadow = true; SL.shadow.mapSize.set(16, 16); tmp.add(SL); } else tmp.add(DL, DL.target);
         const idx = parent ? parent.children.indexOf(root) : -1;
         tmp.add(root);   // 位置・向き・大きさ（root の中の値）はそのまま。影の材質の組み方は場所によらない
         renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = true;
         root.visible = true; const mv = meshes.map(o => o.visible);
         for (let i = 0; i < meshes.length; i++) { if (!mv[i] || !meshes[i].castShadow) continue; meshes.forEach((o, j) => { o.visible = j === i; }); const t1 = now(); renderer.setRenderTarget(rt); renderer.render(tmp, camera); renderer.setRenderTarget(prevRT); if (now() - t1 > 2) { root.visible = false; await aoiYield(); root.visible = true; } }
         meshes.forEach((o, j) => { o.visible = mv[j]; }); root.visible = vis;
-        renderer.setRenderTarget(prevRT); renderer.shadowMap.autoUpdate = auto; renderer.shadowMap.needsUpdate = nu || !auto;
+        renderer.setRenderTarget(prevRT); renderer.shadowMap.autoUpdate = auto; renderer.shadowMap.needsUpdate = nu;   // 場面の影の描き直しは頼まない（手で描き直すアプリで、森じゅうの影を描き直して止まった）
         if (parent) { parent.add(root); if (idx >= 0) { parent.children.pop(); parent.children.splice(idx, 0, root); } } else tmp.remove(root);
         root.updateMatrixWorld(true);
         for (const o of tmp.children.slice()) { o.shadow?.dispose?.(); tmp.remove(o); } rt.dispose(); ov.dispose();
