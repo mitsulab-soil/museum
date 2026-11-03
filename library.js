@@ -16,7 +16,7 @@ export function bookList(rooms) {
 }
 
 export function libWalkable(x, z) {
-  if (Math.abs(x) < LIB.DOOR - .4 && z > LIB.Z - 1.2 && z < LIB.Z + 1.2) return true;   // 入口（円堂からの扉）
+  if (Math.abs(x) < LIB.DOOR - .7 && z > LIB.Z - 1.2 && z < LIB.Z + 1.2) return true;   // 入口（円堂からの扉）
   if (Math.abs(x) > LIB.X - .8 || Math.abs(z) > LIB.Z - .8) return false;
   if (Math.abs(x) < DISP.w + .5 && Math.abs(z - DISP.z) < DISP.d + .5) return false;
   for (const [tx, tz] of TABLES) if (Math.abs(x - tx) < 1.5 && Math.abs(z - tz) < 2.3) return false;

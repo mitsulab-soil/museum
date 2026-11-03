@@ -73,7 +73,8 @@ export function createExhibit(o) {
       const ang = r.th + .22, rE = o.R - 6.2, x = Math.sin(ang) * rE, z = -Math.cos(ang) * rE;
       const nrm = new THREE.Vector2(-x, -z).normalize();
       items.push(build(a, r, { p: new THREE.Vector2(nrm.y, -nrm.x), th: Math.atan2(-x, -z), easel: true, x, z }, 1, false));
-      o.OBST?.push({ x, z, r: .85 });
+      // 当たり判定（2026-11-03）：画架は横に長いので、幅の向きに三つの円で囲む（目が絵の中へ入らない）
+      for (const k of [-.75, 0, .75]) o.OBST?.push({ x: x + nrm.y * k, z: z - nrm.x * k, r: k ? 1.0 : 1.25 });
     } else { const sl = extraSlots.shift(); if (!sl) continue; items.push(build(a, r, sl.f, sl.v, true)); }
   }
 

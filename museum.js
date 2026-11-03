@@ -12,14 +12,14 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import * as TX from "./tex-baked.js?v=20261017-1";
 import { esc, fname, licHTML, credit } from "./common.js";
 import { LIB, libWalkable, buildLibrary, createReader, bookList } from "./library.js";
-import { createExhibit } from "./anim3d.js";
+import { createExhibit } from "./anim3d.js?v=20261103";
 import { createHolo } from "./holo.js?v=20261014p2";
 // 碧の動きと表情（共通の部品 AoiMotion の写し・2026-10-13）。kit/ は 12_ブランド/_共通3D/kit/ の aoi_motion.js・aoi_mocap.js・aoi_mocap.json・aoi_robe.js の写し
 import { AoiMotion, inferGestures } from "./kit/aoi_motion.js?v=61";
 
 const M = window.MUSEUM, T = M.tour, NAMES = M.names;   // 表示する名前は names.json だけから
 // 碧の声の表（data/voice.js・約 0.6 MB）は起動の道すじから外し、あとから届く（2026-10-23 起動 5 秒）。届く前に話すときは少し待つ
-const VOICE_P = window.VOICE ? Promise.resolve() : new Promise(r => { window.__voiceReady = r; setTimeout(r, 8000); }).then(() => { window.VOICE = window.VOICE || {}; });
+const VOICE_P = window.VOICE ? Promise.resolve() : new Promise(r => { window.__voiceReady = r; setTimeout(r, 20000); }).then(() => { window.VOICE = window.VOICE || {}; });
 window.__muBoot = true;
 const $ = id => document.getElementById(id);
 const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -105,11 +105,11 @@ function walkable(x, z, wallGap = 1.6) {
     return e.u < PLAZA && Math.abs(e.v) < (e.u < STEPS ? 14.5 : 22);
   }
   let inLobby = true, libDoorway = false;
-  for (const f of FACES) if (x * f.d.x + z * f.d.y > R - 1.0) { if (f === LIB_FACE && Math.abs(x * f.p.x + z * f.p.y) < LIB.DOOR - .4) libDoorway = true; else inLobby = false; }
+  for (const f of FACES) if (x * f.d.x + z * f.d.y > R - 1.0) { if (f === LIB_FACE && Math.abs(x * f.p.x + z * f.p.y) < LIB.DOOR - .7) libDoorway = true; /* 扉の枠から .7 m（目が枠に近づきすぎない・2026-11-03） */ else inLobby = false; }
   if (libDoorway && inLobby) return true;
   if (inLobby) return !inStele(x, z) && COLS.every(c => Math.hypot(x - c.x, z - c.y) > 1.05) && OBST.every(o => Math.hypot(x - o.x, z - o.z) > o.r);
   const l = local(x, z); if (!l) return false; const r = rooms[l.i];
-  if (l.u < 0.25) return l.u > -1.2 && Math.abs(l.v) < DOOR - .5;
+  if (l.u < 0.25) return l.u > -1.2 && Math.abs(l.v) < DOOR - .7;
   if (l.u > r.L - .5) return false;
   const lim = l.u > FOY - .2 && l.u < FOY + r.rows * BAY + .2 ? HALF - wallGap : HALF - .45;
   return Math.abs(l.v) <= lim;
@@ -245,7 +245,7 @@ function textPlane(wm, hm, draw, px = 512) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAXANI;
   return new THREE.Mesh(new THREE.PlaneGeometry(wm, hm), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false }));
 }
-function fit(g, s, max, font, size) { let z = size; do { g.font = font.replace("%", z); z -= 2; } while (g.measureText(s).width > max && z > 10); }
+function fit(g, s, max, font, size) { g.font = font.replace("%", size); const w = g.measureText(s).width; if (w <= max) return; let z = Math.max(10, Math.floor(size * max / w)); g.font = font.replace("%", z); while (z > 10 && g.measureText(s).width > max) { z -= 1; g.font = font.replace("%", z); } }   // 字の幅は大きさに比例：一度測って割り出す（2026-11-03 起動）
 function wrapLines(g, s, max) { const out = []; let line = ""; for (const ch of s) { if (g.measureText(line + ch).width > max) { out.push(line); line = ch; } else line += ch; } if (line) out.push(line); return out; }
 
 // ---------------------------------------------------------------- 館を建てる（静かな部分は、部屋ごと・材質ごとに一つの形へまとめる＝描く回数を減らす）
@@ -533,7 +533,7 @@ function playCall(id, pos) {
     if (pos) { pn.positionX.value = pos.x; pn.positionY.value = pos.y; pn.positionZ.value = pos.z; } g.gain.value = .9; s.buffer = b; s.connect(g); g.connect(pn); pn.connect(AUD.master); s.start(); }).catch(() => {});
 }
 // 生きものの鳴き声と動きの音（2026-10-09 本人「動物について、鳴き声や動きの音をつけてください。静かに動きすぎです」）
-//   商用可の録音だけ（雁の声＝CC BY-SA 4.0、動きの音＝Freesound の CC0）。原本＝04_データ/02_CC素材/04_音声/museum_calls/、切り出し＝_dev/creature_snd.py、台帳 M-0804〜0812。
+//   商用可の録音だけ（雁の声＝CC BY-SA 4.0、動きの音＝Freesound の CC0）。原本＝04_データ/01_CC素材/04_音声/museum_calls/、切り出し＝_dev/creature_snd.py、台帳 M-0804〜0812。
 //   蝶・蜻蛉・鯉・野うさぎは鳴かない（声を出さない生きもの）ので、動きの音だけ。音は小さく、碧の声のあいだはさらに小さく、離れると減る
 CALLS.gan = { f: "snd/call_gan.m4a", label: "マガンの飛びながらの声（オランダで録音）", who: "Joost van Bruggen（xeno-canto XC432936）", lic: "CC BY-SA 4.0", licurl: "https://creativecommons.org/licenses/by-sa/4.0/", page: "https://commons.wikimedia.org/wiki/File:Anser_albifrons_-_Greater_White-fronted_Goose_XC432936.mp3" };
 const SFX = {
@@ -952,7 +952,7 @@ const AUD = {
     try { const s = ctx.createMediaElementSource(v); this.an = ctx.createAnalyser(); this.an.fftSize = 512; s.connect(this.an); this.an.connect(this.vbus); } catch {}
     this.td = new Uint8Array(512); ctx.resume?.();
   },
-  setMute(m) { this.muted = m; store.set("smm-mute", m); if (this.master) this.master.gain.setTargetAtTime(m ? 0 : 1, this.ctx.currentTime, .08); AU.muted = m; $("muteBtn").textContent = m ? "🔇" : "🔊"; $("muteBtn").setAttribute("aria-pressed", String(m)); $("muteBtn").setAttribute("aria-label", m ? "音を出す" : "音を消す"); },
+  setMute(m) { this.muted = m; store.set("smm-mute", m); if (this.master) this.master.gain.setTargetAtTime(m ? 0 : 1, this.ctx.currentTime, .08); AU.muted = m; $("muteBtn").innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + (m ? '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/>' : '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/>') + "</svg>"; $("muteBtn").setAttribute("aria-pressed", String(m)); $("muteBtn").setAttribute("aria-label", m ? "音を出す" : "音を消す"); },
   async buffer(f) {
     if (!this.bufs.has(f)) this.bufs.set(f, fetch(f).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(b => new Promise((res, rej) => this.ctx.decodeAudioData(b, res, rej))));
     return this.bufs.get(f);
@@ -1137,7 +1137,10 @@ function moveTick(dt) {
     const st = Math.min(d, me.speed * dt);
     if (d < .04) { me.path.shift(); if (!me.path.length) { me.speed = 0; arrive(); } }
     else {
-      me.pos.x += dx / d * st; me.pos.z += dz / d * st;
+      // 当たり判定（2026-11-03）：道すじの途中でも壁・柱・台の中へは入らない。入りそうなら、その手前で止まって着いたことにする（案内が止まらない）
+      const nx = me.pos.x + dx / d * st, nz = me.pos.z + dz / d * st;
+      if (!inLib(nx, nz) && !inLib(me.pos.x, me.pos.z) && !walkable(nx, nz, .3) && walkable(me.pos.x, me.pos.z, .3)) { me.path = []; me.speed = 0; window.__mvBlock = (window.__mvBlock || 0) + 1; arrive(); camera.position.copy(me.pos); return; }
+      me.pos.x = nx; me.pos.z = nz;
       const want = me.faceTo && (last && d < 1.6) ? Math.atan2(-(me.faceTo.x - me.pos.x), -(me.faceTo.z - me.pos.z)) : Math.atan2(-dx, -dz);
       if (!dragging && !me.userLook) me.yaw += wrapA(want - me.yaw) * ease(dt, 3.2);
     }
@@ -1885,7 +1888,7 @@ function fold(on) { if (!on) SP.autoFolded = false; const g = $("guide"); g.clas
 $("guideFold").onclick = e => { e.stopPropagation(); fold(!$("guide").classList.contains("folded")); };
 $("guide").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && $("guide").classList.contains("folded")) { e.preventDefault(); e.stopPropagation(); fold(false); setActs(curActs()); } });
 $("guide").addEventListener("click", () => { if ($("guide").classList.contains("folded")) { fold(false); setActs(curActs()); } });
-let toastT = 0; function toast(s) { const t = $("toast"); t.textContent = s; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 1800); }
+let toastT = 0; function toast(s) { const t = $("toast"); t.textContent = s; t.classList.add("on", "is-on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on", "is-on"), 1800); }
 let lastWhere = "", talkAt = null;   // talkAt＝碧がいま話している景（場所の札はこれを優先・2026-10-08 夜の検証）
 function updWhere() {
   if (mode !== "walk") return;
@@ -1983,7 +1986,8 @@ placeStart(); resize(); camera.position.copy(me.pos); camera.rotation.set(me.pit
 prog(20);
 // 2026-10-23 本人「見える部分は表示してください」：館（見える部分）がそろったら歩けるようにする。碧はあとから網目で現れる（PC は館の質感がそろってから 0.8 秒まで待つ・スマホは待たない）
 const aoiP = loadAoi();
-const warm = Promise.all([new Promise(r => setTimeout(r, 50)), TX.ready.then(() => Promise.race([aoiP, sleep(isTouch ? 0 : 800)]))]);
+// 2026-11-03 起動 2 秒（本人）：碧を待たない（PC の 0.8 秒待ちをやめた）。見えている材質のシェーダは並行で組み、組み上がってから歩けるようにする（押した直後に固まらない）
+const warm = Promise.all([new Promise(r => setTimeout(r, 50)), TX.ready]).then(() => Promise.race([renderer.compileAsync(scene, camera).catch(() => {}), sleep(1200)]));
 // 画面外の全展示まで一度にコンパイルせず、rendererが実際に見える材質から用意する。
 requestAnimationFrame(tick);
 const resumeAt = store.get("smm-at", null);

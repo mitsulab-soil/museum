@@ -9,6 +9,7 @@
 <link rel="icon" href="favicon/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="favicon/apple-touch-icon.png">
 <link rel="manifest" href="favicon/manifest.webmanifest">
+<link rel="stylesheet" href="kit/ui.css">
 <meta name="theme-color" content="#03060f">
 <meta name="description" content="Qualia Museum。森羅百景の八つの連作を、碧と歩いて巡る博物館。書架の間では、一冊ずつ手にとって読める。">
 <meta property="og:title" content="Qualia Museum">
@@ -317,6 +318,26 @@ body.oto #hint,body.oto #zones{display:none!important}
 /* 2026-10-14 11 人：スマホで碧の操作列の最後（「この部屋を順に案内して」など）が右の端で切れた → 折り返す */
 @media (max-width:600px){#acts{flex-wrap:wrap;overflow:visible}}
 @media (max-width:440px){#tools{gap:5px}#holoBar .btn{padding:0 12px}}
+
+/* ---- 2026-11-03 共通 GUI（kit/ui.css）にそろえる：右上は線のアイコンの丸、左上の場所は帯なしの字、碧の字幕は帯なし、選択肢は丸い明朝の札、知らせは .mu-toast ---- */
+#tools{gap:8px}
+#tools .mu-icon[aria-pressed=true]{border-color:var(--mu-aoi);color:var(--mu-aoi-2)}
+#where{background:none;border:0;box-shadow:none;padding:6px 4px;text-shadow:var(--mu-shadow)}
+#where b{font-family:var(--mu-serif);font-size:15px;letter-spacing:.12em;color:#eaf8fc}
+#where small{font-size:12.5px;letter-spacing:.06em;color:#eaf8fc;text-shadow:0 0 2px rgba(3,6,15,.95),0 1px 8px rgba(3,6,15,.9)}
+#mini{border-radius:var(--mu-r);border-color:var(--mu-line);background:var(--mu-panel);box-shadow:none}
+#guide{background:none;border:0;backdrop-filter:none;-webkit-backdrop-filter:none;text-shadow:0 0 2px rgba(3,6,15,.95),0 1px 10px rgba(3,6,15,.85);justify-content:center}
+#guide .txt{text-align:center}
+#say{font-family:var(--mu-serif);font-size:14.5px;line-height:1.75;letter-spacing:.04em;color:var(--mu-ink);word-break:auto-phrase;line-break:strict;text-wrap:balance}
+#acts{justify-content:center;gap:8px;margin:8px 34px 0}
+#acts .btn{min-height:var(--mu-hit);padding:0 18px;border-radius:var(--mu-r-round);font:600 13.5px/1 var(--mu-serif);letter-spacing:.1em;color:var(--mu-ink);background:var(--mu-panel);border:1px solid var(--mu-line);backdrop-filter:var(--mu-blur);-webkit-backdrop-filter:var(--mu-blur);text-shadow:none}
+#acts .btn.pri{background:var(--mu-panel);border-color:var(--mu-aoi);color:var(--mu-aoi-2)}
+#acts .ib{width:var(--mu-hit);padding:0}
+#guide.folded{background:var(--mu-panel);border:1px solid var(--mu-line)}
+#toast.mu-toast{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;top:calc(var(--mu-gt) + 120px);box-shadow:none;border-radius:var(--mu-r);font-size:14px}
+#startCue{background:none;border:0;text-shadow:0 0 2px rgba(3,6,15,.95),0 1px 10px rgba(3,6,15,.85);font-family:var(--mu-serif);font-size:14px;letter-spacing:.06em;color:var(--mu-ink)}
+#hint span{background:var(--mu-panel);border-color:var(--mu-line);border-radius:var(--mu-r-round);font-family:var(--mu-serif);font-size:14px;box-shadow:none;backdrop-filter:var(--mu-blur);-webkit-backdrop-filter:var(--mu-blur)}
+@media (max-width:440px){#acts{margin:6px 30px 0;gap:6px}#acts .btn{min-height:var(--mu-hit);font-size:12.5px;padding:0 12px;letter-spacing:.06em}#say{font-size:13.5px;line-height:1.65}#startCue{font-size:13px}}
 </style>
 <script type="importmap">
 {"imports":{"three":"./vendor/three/build/three.module.js",
@@ -331,22 +352,22 @@ body.oto #hint,body.oto #zones{display:none!important}
 <link rel="modulepreload" href="tex-baked.js?v=20261017-1">
 <link rel="modulepreload" href="common.js">
 <link rel="modulepreload" href="library.js">
-<link rel="modulepreload" href="anim3d.js">
+<link rel="modulepreload" href="anim3d.js?v=20261103">
 <link rel="modulepreload" href="holo.js?v=20261014p2">
 <link rel="modulepreload" href="kit/aoi_motion.js?v=61">
 <link rel="modulepreload" href="creatures3d.js">
 <link rel="modulepreload" href="kit/aoi_mocap.js">
 <link rel="modulepreload" href="kit/aoi_robe.js">
 <link rel="modulepreload" href="creatures_kochou.js">
-<link rel="preload" href="kit/aoi_mocap.json" as="fetch" crossorigin>
+
 
 <!-- Start the same 3D module graph and Aoi asset while the data scripts arrive.
      modulepreload does not execute museum.js before window.MUSEUM/VOICE/BOOKS. -->
-<link rel="modulepreload" href="museum.js?v=20261027-idle3" fetchpriority="high">
+<link rel="modulepreload" href="museum.js?v=20261103-boot" fetchpriority="high">
 <link rel="modulepreload" href="vendor/three/examples/jsm/loaders/GLTFLoader.js">
 <link rel="modulepreload" href="vendor/three/examples/jsm/libs/meshopt_decoder.module.js">
 <link rel="modulepreload" href="vendor/three-vrm/three-vrm.module.min.js">
-<link rel="preload" href="s/assets/aoi/aoi.vrm" as="fetch" crossorigin fetchpriority="high">
+
 </head>
 <body>
 <script src="loader/loader.js" data-title="Qualia Museum" data-en="Qualia Dive" data-icon="favicon/icon.svg" data-replace="boot"></script>
@@ -359,10 +380,10 @@ body.oto #hint,body.oto #zones{display:none!important}
 <header id="top" hidden>
   <div id="where" aria-live="polite"><b id="whereName">Qualia Museum</b><small id="whereSub">入口の広間</small></div>
   <div id="tools">
-    <button class="ico" id="homeBtn" aria-label="広間のまん中へもどる" title="広間のまん中へもどる">⌂</button>
-    <button class="ico" id="muteBtn" aria-label="音を消す" aria-pressed="false" title="音">🔊</button>
-    <button class="ico" id="listBtn" aria-label="一覧で見る（3D を使わずに）" title="一覧で見る">☰</button>
-    <button class="ico" id="menuBtn" aria-label="設定と出典" title="設定と出典">⚙</button>
+    <button class="mu-icon" id="homeBtn" aria-label="広間のまん中へもどる" title="広間のまん中へもどる"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></button>
+    <button class="mu-icon" id="muteBtn" aria-label="音を消す" aria-pressed="false" title="音"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>
+    <button class="mu-icon" id="listBtn" aria-label="一覧で見る（3D を使わずに）" title="一覧で見る"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
+    <button class="mu-icon" id="menuBtn" aria-label="設定と出典" title="設定と出典"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></button>
     <button id="mini" aria-label="館内の地図をひらく" title="地図"><canvas width="224" height="224"></canvas></button>
   </div>
 </header>
@@ -380,7 +401,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <aside id="panel" hidden aria-label="作品の札"></aside>
 <div id="zoom" hidden role="dialog" aria-label="作品の拡大"><img alt=""><div class="cap"></div><button class="ico x" id="zoomX" aria-label="拡大を閉じる">✕</button></div>
 <div id="joy" hidden aria-hidden="true"><i></i></div>
-<div id="toast" role="status"></div>
+<div id="toast" class="mu-toast" role="status"></div>
 <div id="hint" hidden aria-hidden="true"><span><b>👆</b>押して歩く</span><span><b>↔</b>なぞって見回す</span><span><b>🖼</b>絵の前で止まると、碧が話す</span></div>
 
 <nav id="shelfBar" hidden aria-label="書架の本"></nav>
@@ -458,10 +479,10 @@ body.oto #hint,body.oto #zones{display:none!important}
 })();
 </script>
 <script src="data/museum.js"></script>
-<script src="data/voice.js" async onload="window.__voiceReady&&__voiceReady()" onerror="window.VOICE=window.VOICE||{};window.__voiceReady&&__voiceReady()"></script>
+<script>/* 碧の声の表（大きい）は、館が組み上がってから読む（2026-11-03 起動 2 秒） */addEventListener('load',function(){setTimeout(function(){var v=document.createElement('script');v.src='data/voice.js';v.onload=function(){window.__voiceReady&&__voiceReady()};v.onerror=function(){window.VOICE=window.VOICE||{};window.__voiceReady&&__voiceReady()};document.body.appendChild(v)},300)});</script>
 <script src="data/books.js" onerror="window.BOOKS=[]"></script>
 <script src="data/anim.js" onerror="window.ANIM=[]"></script>
-<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261027-idle3';document.body.appendChild(s);}</script>
+<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261103-boot';document.body.appendChild(s);}</script>
 <noscript><p style="padding:20px">この博物館は JavaScript で動きます。</p></noscript>
 </body>
 </html>
