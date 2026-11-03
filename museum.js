@@ -144,11 +144,15 @@ const PART = {
 // ---------------------------------------------------------------- three の場
 const stage = $("stage"); stage.setAttribute("role", "img"); stage.setAttribute("aria-label", "館の中の 3D の眺め。操作は下のボタンと、碧のことばから");
 const renderer = new THREE.WebGLRenderer({ antialias: !isTouch || devicePixelRatio < 2, powerPreference: "high-performance" });
+renderer.debug.checkShaderErrors = false;   // 2026-11-03：影の計算の確かめで止まらない（コマ落ちをなくす）
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouch ? 1.5 : 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
+// 2026-11-03：碧の顔の補助光（点の光 1 つ）の代わりを、はじめから置いておく（碧が入っても光の数が変わらず、館の材質を組み直さない＝止まらない）
+const faceStub = new THREE.PointLight(0xffffff, 0, 2.4, 2); scene.add(faceStub);
+const compileWithFace = async o => { scene.remove(faceStub); const p = renderer.compileAsync(o, camera, scene); scene.add(faceStub); try { await p; } catch (e) {} };
 scene.background = new THREE.Color(ATMO.lobby.fog);
 scene.fog = new THREE.Fog(ATMO.lobby.fog, 22, 95);
 const pm = new THREE.PMREMGenerator(renderer);
@@ -781,6 +785,7 @@ async function hang(bay, sl) {
   const lab = labelCard(w, Math.max(.62, Math.min(1.3, ww))); lab.position.set(0, -hh / 2 - fr - .16, .15); grp.add(lab);
   img.userData = frame.userData = { bay, slot: sl }; clickables.push(img, frame);
   window.__museumArchitecture?.refineFrame(frame,ww,hh,fr);
+  try { await renderer.compileAsync(grp, camera, scene); } catch (e) {}   // 2026-11-03：額の材質を先に並列で（歩いている最中に止まらない）
   bay.g.add(grp); sl.mesh = grp; sl.tex = t; sl.ph.visible = false;
 }
 function unhang(bay) {
@@ -1353,7 +1358,7 @@ async function loadAoi() {
     const v = g.userData.vrm; if (!v) throw new Error("VRM ではない");
     V.VRMUtils.removeUnnecessaryVertices(g.scene); (V.VRMUtils.combineSkeletons ?? V.VRMUtils.removeUnnecessaryJoints)?.(g.scene); V.VRMUtils.rotateVRM0(v);
     v.scene.traverse(o => { o.frustumCulled = false; });
-    aoi = new THREE.Group(); aoi.add(v.scene); scene.add(aoi); vrm = v;
+    aoi = new THREE.Group(); aoi.add(v.scene); vrm = v;   // 2026-11-03：館に入れるのは組み立てのあと（出るときに止まらない）
     const hp = v.humanoid.getNormalizedBoneNode("hips"); if (hp) A.hip0 = hp.position.clone();
     aoiPose(0); v.update(0); v.scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(v.scene), h = box.max.y - box.min.y, sc = h > .5 ? AOI_H / h : 1;
@@ -1373,7 +1378,7 @@ async function loadAoi() {
     aoiJump();
     window.__aoi = { vrm, aoi, A };
     // 碧の材質は、出る前に並行で組み立てる（はじめて映るこまで止まらない・2026-10-23）
-    try { A.hold = true; aoi.visible = true; await renderer.compileAsync(aoi, camera, scene); } catch (e) {} A.hold = false;
+    try { A.hold = true; aoi.visible = true; await compileWithFace(aoi); } catch (e) {} scene.remove(faceStub); scene.add(aoi); A.hold = false;
   } catch (e) { console.warn("碧の姿を読み込めませんでした（声と字幕で案内します）：", e?.message ?? e); }
 }
 function safeSpot(p) {   // 通れる所へ寄せる（壁の中・壁ぎわ・台の上の目的地を、いちばん近い通れる点に）
@@ -1955,7 +1960,7 @@ document.querySelectorAll("[data-n]").forEach(el => { const k = el.dataset.n; if
 document.title = NAMES.museum;
 
 // ---------------------------------------------------------------- まわす
-const clock = new THREE.Clock(); let acc = 0, mapAcc = 0, frames = 0, tt = 0;
+const clock = new THREE.Clock(); let acc = 0, mapAcc = 0, frames = 0, tt = 0, warmed = false;   // warmed＝シェーダを並列で組み終えた（それまでは描かない＝最初のこまで止まらない・2026-11-03）
 function tick() {
   const dt = Math.min(.05, clock.getDelta()); tt += dt;
   if (mode === "walk") { moveTick(dt); }
@@ -1976,7 +1981,7 @@ function tick() {
       if (space === "library" && mode === "walk" && woke && !reader.isOpen && !(tour.on && !tour.susp)) talk(T.library, libActs()); }
     streamBays(); updWhere(); setZone(zoneOf()); if (mode === "walk" && !me.path.length && space === "museum" && region(me.pos.x, me.pos.z).kind === "room") store.set("smm-at", [+me.pos.x.toFixed(2), +me.pos.z.toFixed(2), +me.yaw.toFixed(3)]); }
   if (mode === "walk") { mapAcc += dt; if (mapAcc > .2) { mapAcc = 0; drawMini(); } }
-  if (!document.hidden && ($("reader").hidden || (frames++ % 4 === 0))) { renderer.render(scene, camera); frames++; }   // 本をひらいているあいだも、うしろの部屋は描く（間引いて）
+  if ((warmed || tt > 1.5) && !document.hidden && ($("reader").hidden || (frames++ % 4 === 0))) { renderer.render(scene, camera); frames++; }   // 本をひらいているあいだも、うしろの部屋は描く（間引いて）
   requestAnimationFrame(tick);
 }
 function prog(p) { $("prog").querySelector("i").style.width = Math.round(p) + "%"; window.MLLoader?.progress(p / 100); }   // mitsulab 共通の読み込み画面（loader/・2026-10-09）
@@ -1993,7 +1998,7 @@ requestAnimationFrame(tick);
 const resumeAt = store.get("smm-at", null);
 const resumeOK = !!resumeAt && (() => { space = "museum"; return walkable(resumeAt[0], resumeAt[1]) && region(resumeAt[0], resumeAt[1]).kind === "room"; })();
 function resumeGo() { intro.tok++; space = "museum"; teleport(new THREE.Vector3(resumeAt[0], 0, resumeAt[1]), null, () => { me.yaw = resumeAt[2]; freeTalk([T.idle.hello]); }); }
-warm.then(() => { prog(100); enterWalk(); showHint();
+warm.then(() => { warmed = true; prog(100); enterWalk(); showHint();
   requestAnimationFrame(() => requestAnimationFrame(() => { loader.hold = false; const cp = camera.position; loader.q.sort((a, b) => Math.hypot(a[0].center.x - cp.x, a[0].center.z - cp.z) - Math.hypot(b[0].center.x - cp.x, b[0].center.z - cp.z)); pump(); })); });
 // Architectural detail starts after an interactive frame; it does not join the boot gate.
 let architectureRequested=false;
