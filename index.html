@@ -363,7 +363,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 
 <!-- Start the same 3D module graph and Aoi asset while the data scripts arrive.
      modulepreload does not execute museum.js before window.MUSEUM/VOICE/BOOKS. -->
-<link rel="modulepreload" href="museum.js?v=20261103-fast" fetchpriority="high">
+<link rel="modulepreload" href="museum.js?v=20261103-late" fetchpriority="high">
 <link rel="modulepreload" href="vendor/three/examples/jsm/loaders/GLTFLoader.js">
 <link rel="modulepreload" href="vendor/three/examples/jsm/libs/meshopt_decoder.module.js">
 <link rel="modulepreload" href="vendor/three-vrm/three-vrm.module.min.js">
@@ -474,7 +474,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 (function(){
   var warn=document.getElementById('startWarn');
   function show(html){ warn.innerHTML=html; warn.hidden=false; document.getElementById('prog').hidden=true; }
-  if(location.protocol==='file:'){ show('このページは、ファイルを直接ひらくと館を組み立てられません。ウェブのページとしてひらいてください。'); return; }
+  if(location.protocol==='file:'){ show('このページは、ファイルを直接ひらくと館を組み立てられません。同じフォルダの<b>「ひらく.command」</b>をダブルクリックしてください。小さなサーバを立てて、ブラウザで館をひらきます。'); return; }
   setTimeout(function(){ if(!window.__muBoot) show('館を組み立てる道具（three.js）が届いていません。通信を確かめて、ページを読み込み直してください。'); },20000);
 })();
 </script>
@@ -482,7 +482,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <script>/* 碧の声の表（大きい）は、館が組み上がってから読む（2026-11-03 起動 2 秒） */addEventListener('load',function(){setTimeout(function(){var v=document.createElement('script');v.src='data/voice.js';v.onload=function(){window.__voiceReady&&__voiceReady()};v.onerror=function(){window.VOICE=window.VOICE||{};window.__voiceReady&&__voiceReady()};document.body.appendChild(v)},300)});</script>
 <script src="data/books.js" onerror="window.BOOKS=[]"></script>
 <script src="data/anim.js" onerror="window.ANIM=[]"></script>
-<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261103-fast';document.body.appendChild(s);}</script>
+<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261103-late';document.body.appendChild(s);}</script>
 <noscript><p style="padding:20px">この博物館は JavaScript で動きます。</p></noscript>
 </body>
 </html>

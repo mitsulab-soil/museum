@@ -183,7 +183,20 @@ const domeMat = new THREE.MeshStandardMaterial({ color: 0x86714f, side: THREE.Ba
 const oculusMat = new THREE.MeshBasicMaterial({ color: 0xfff6e2, toneMapped: false });
 // 絨毯の毛足（Poly Haven「Dirty Carpet」の法線だけ・CC0。2026-10-08）。部屋の通路の UV は 2.4 m で一巡 → 毛足は 0.6 m ごと
 const C_NOR = tex("tex/c_nor.webp", false); C_NOR.repeat.set(4, 4);
-function runnerMat(cols) { const t = TX.runner(cols[0], cols[1]); return new THREE.MeshStandardMaterial({ map: t, normalMap: C_NOR, normalScale: new THREE.Vector2(.6, .6), roughness: .95, envMapIntensity: .2 }); }
+// 2026-11-03 起動 1 秒：手間のかかる絵（札の字・絨毯の織り）は、形と材質だけ先に置き、絵は近い順に一こま 8 ms までで描く（シェーダを組んでいる待ちのあいだに済む。見た目は同じ）
+const LATE = []; let lateOn = false;
+function late(fn, pos) { LATE.push({ fn, pos }); if (!lateOn) { lateOn = true; requestAnimationFrame(lateRun); } }
+function lateRun() {
+  const t0 = performance.now(), cp = camera.position;
+  LATE.sort((a, b) => (a.pos ? a.pos.distanceToSquared(cp) : 0) - (b.pos ? b.pos.distanceToSquared(cp) : 0));
+  while (LATE.length && performance.now() - t0 < 8) { try { LATE.shift().fn(); } catch (e) { console.warn(e); } }
+  if (LATE.length) requestAnimationFrame(lateRun); else lateOn = false;
+}
+function runnerMat(cols, pos) {
+  const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"); g.fillStyle = cols[0]; g.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  late(() => { const src = TX.runner(cols[0], cols[1]); g.drawImage(src.image, 0, 0); src.dispose(); t.needsUpdate = true; }, pos);
+  return new THREE.MeshStandardMaterial({ map: t, normalMap: C_NOR, normalScale: new THREE.Vector2(.6, .6), roughness: .95, envMapIntensity: .2 }); }
 // 窓の外（部屋ごとに一つの ShaderMaterial。空は見る向きで引くので、月や太陽は窓をまたいで同じ場所に見える）
 const WIN_VS = `varying vec2 vUv; varying vec3 vW; void main(){ vUv=uv; vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`;
 const WIN_FS = `uniform float uT; uniform int uM; uniform vec3 uSun; varying vec2 vUv; varying vec3 vW;
@@ -244,10 +257,12 @@ const blobMat = new THREE.MeshBasicMaterial({ map: radial([[0, "rgba(10,6,2,.45)
 // 文字の板
 const MINCHO = '"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","KRsub",serif', GOTH = '"Hiragino Sans","Yu Gothic","Noto Sans JP","KRsub",sans-serif';
 document.fonts?.load('20px "KRsub"', "ᄆᆞᆰ구").catch(() => {});   // 3D の札（canvas）に描く前に、韓国語の字の書体を読んでおく（2026-10-08）
-function textPlane(wm, hm, draw, px = 512) {
-  const c = document.createElement("canvas"); c.width = px; c.height = Math.round(px * hm / wm); const g = c.getContext("2d"); draw(g, c.width, c.height);
+function textPlane(wm, hm, draw, px = 512, lazy = false) {   // lazy：字は位置が決まってから近い順に描く（2026-11-03 起動）
+  const c = document.createElement("canvas"); c.width = px; c.height = Math.round(px * hm / wm); const g = c.getContext("2d");
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAXANI;
-  return new THREE.Mesh(new THREE.PlaneGeometry(wm, hm), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false }));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(wm, hm), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false }));
+  if (lazy) late(() => { draw(g, c.width, c.height); t.needsUpdate = true; }, m.position); else draw(g, c.width, c.height);
+  return m;
 }
 function fit(g, s, max, font, size) { g.font = font.replace("%", size); const w = g.measureText(s).width; if (w <= max) return; let z = Math.max(10, Math.floor(size * max / w)); g.font = font.replace("%", z); while (z > 10 && g.measureText(s).width > max) { z -= 1; g.font = font.replace("%", z); } }   // 字の幅は大きさに比例：一度測って割り出す（2026-11-03 起動）
 function wrapLines(g, s, max) { const out = []; let line = ""; for (const ch of s) { if (g.measureText(line + ch).width > max) { out.push(line); line = ch; } else line += ch; } if (line) out.push(line); return out; }
@@ -304,7 +319,7 @@ const putF = (tag, mat, geo, f, u, v, y, rotY) => { const p = WF(f, u, v); p.y =
       c.fillStyle = "#3a2a18"; fit(c, title, w * .8, `600 %px ${MINCHO}`, 104); c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(title, w / 2, h * .44);
       c.fillStyle = "#6b5332"; fit(c, sub, w * .86, `%px ${GOTH}`, 32); c.fillText(sub, w / 2, h * .82);
       if (room) { c.fillStyle = room.acc; c.fillRect(w / 2 - 60, h - 20, 120, 6); }
-    }, 1024);
+    }, 1024, true);
     const ty = open ? 6.4 : 4.2;
     const p = WF(F, -.53, 0); t.position.set(p.x, ty, p.z); t.rotation.y = -F.th; world.add(t);
     putF("brass", brassMat, new THREE.BoxGeometry(2.2, .06, .05), F, -.54, 0, ty + .55, -F.th);
@@ -452,7 +467,7 @@ for (const r of rooms) {
   roomMats.push({ fm, wm, cm, lm, wn });
   const rot = -r.th, L = r.L, c = W(i, L / 2, 0);
   const f = new THREE.Mesh(planeUV(2 * HALF, L, 2.2), fm); f.rotation.set(-Math.PI / 2, 0, rot); f.position.set(c.x, 0, c.z); world.add(f); floors.push(f);
-  const rn = new THREE.Mesh(planeUV(2.4, L - 1.2, 2.4, 2.4), runnerMat(A.run)); rn.rotation.set(-Math.PI / 2, 0, rot); const rc = W(i, (L - 1.2) / 2 + .6, 0); rn.position.set(rc.x, .004, rc.z); world.add(rn);
+  const rn = new THREE.Mesh(planeUV(2.4, L - 1.2, 2.4, 2.4), runnerMat(A.run, W(i, 1, 0))); rn.rotation.set(-Math.PI / 2, 0, rot); const rc = W(i, (L - 1.2) / 2 + .6, 0); rn.position.set(rc.x, .004, rc.z); world.add(rn);
   if (A.wet) {   // 雨の部屋：床に水たまり（映り込みのつよい暗い面）
     const pud = new THREE.MeshStandardMaterial({ color: 0x0f141a, roughness: .04, metalness: .3, transparent: true, opacity: .55, envMapIntensity: 2 });
     for (let k = 0; k < Math.floor(L / 6); k++) { const q = W(i, 5 + k * 6 + (k % 2) * 2, (k % 3 - 1) * 1.6); const pdm = new THREE.Mesh(new THREE.CircleGeometry(.9 + (k % 3) * .3, 28), pud); pdm.rotation.x = -Math.PI / 2; pdm.scale.set(1.4, .8, 1); pdm.rotation.z = k; pdm.position.set(q.x, .007, q.z); world.add(pdm); }
@@ -495,7 +510,7 @@ for (const r of rooms) {
     g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = r.acc; g.fillRect(w / 2 - 50, 8, 100, 8);
     g.fillStyle = "#f3e9d3"; fit(g, r.name, w * .9, `600 %px ${MINCHO}`, 140); g.fillText(r.name, w / 2, h * .45);
     g.fillStyle = "#d8c9a8"; fit(g, r.desc, w * .9, `%px ${GOTH}`, 44); g.fillText(r.desc, w / 2, h * .85);
-  }, 1024);
+  }, 1024, true);
   { const p = W(i, L - .02, 0); t.position.set(p.x, 2.6, p.z); t.rotation.y = Math.PI - r.th; world.add(t); }
   for (const k of r.kei) makeBay(r, k);
   // 区画（鳥・けもの…）：区画のはじまりに吊り札、床の縁に区画の色の帯（2026-10-07 本人「見てすぐ分かる区画にする（床の色・棚・札・照明・音で区切る）」）
@@ -508,7 +523,7 @@ for (const r of rooms) {
     const t = textPlane(2.6, .62, (g, w, h) => { g.fillStyle = "rgba(24,17,10,.92)"; g.fillRect(0, 0, w, h); g.fillStyle = col; g.fillRect(0, 0, 18, h); g.fillRect(w - 18, 0, 18, h);
       g.strokeStyle = "#c9a45c"; g.lineWidth = 5; g.strokeRect(3, 3, w - 6, h - 6); g.textAlign = "center"; g.textBaseline = "middle";
       g.fillStyle = "#f3e7cf"; fit(g, z.name, w * .8, `600 %px ${MINCHO}`, Math.round(h * .5)); g.fillText(z.name, w / 2, h * .42);
-      g.fillStyle = "#d8c9a8"; fit(g, `${z.sub}　${ks.length} 景`, w * .8, `%px ${GOTH}`, Math.round(h * .2)); g.fillText(`${z.sub}　${ks.length} 景`, w / 2, h * .8); }, 1024);
+      g.fillStyle = "#d8c9a8"; fit(g, `${z.sub}　${ks.length} 景`, w * .8, `%px ${GOTH}`, Math.round(h * .2)); g.fillText(`${z.sub}　${ks.length} 景`, w / 2, h * .8); }, 1024, true);
     const c = W(i, u0 + .25, 0); t.position.set(c.x, 4.15, c.z); t.rotation.y = -r.th; world.add(t);   // 円堂の側から来る人に向ける
     for (const sx of [-1, 1]) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, WALL_H - 4.46, 4), brassMat); const q = W(i, u0 + .25, sx * 1.1); ch.position.set(q.x, 4.46 + (WALL_H - 4.46) / 2, q.z); world.add(ch); }
   });
@@ -629,7 +644,7 @@ function getAoi() {
   return { pos: new THREE.Vector3(A.pos.x, 0, A.pos.z), hand: palm || new THREE.Vector3(A.pos.x, 1.1, A.pos.z), head: hd ? hd.getWorldPosition(_hd).clone() : new THREE.Vector3(A.pos.x, 1.5, A.pos.z) };
 }
 const EX = createExhibit({ THREE, world, rooms, FACES, WF, R, OBST, darkWood, poolMat, clickables, giltMat, brassMat, camera, getRM: () => RM, getAoi,
-  labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm), onEvent: crEvent, onLanded: it => { if (guideIt === it) guideIt = null; } });
+  labelCard: (a, r, wm) => labelCard(animWork(a).w || { title: a.name }, wm, true), onEvent: crEvent, onLanded: it => { if (guideIt === it) guideIt = null; } });
 // 部屋の中の絵からも生きものが抜け出る（2026-10-08 本人）：data/anim.js の切り抜きのうち、その絵が部屋の景に掛かっているもの（CC0／PD だけ）
 for (const a of window.ANIM || []) {
   const r = rooms.find(x => x.slug === a.room), k = r?.kei.find(x => x.id === a.kei), bay = k?.bay; if (!bay) continue;
@@ -734,14 +749,14 @@ function bayTitle(bay) {
   }, 1024);
   t.position.set(0, 3.6, .015); bay.g.add(t); bay.title = t;
 }
-function labelCard(w, wm = .62) {
+function labelCard(w, wm = .62, lazy = false) {
   // 絵の下の小さな真鍮縁の札：題（1 行）と、作者・年（1 行）
   const who = [w.artist || w.author || "", w.date === "いま" ? "" : w.date].filter(Boolean).join("　");
   return textPlane(wm, .15, (g, W_, H) => {
     g.fillStyle = "#efe5cf"; g.fillRect(0, 0, W_, H); g.strokeStyle = "#a8864a"; g.lineWidth = 6; g.strokeRect(3, 3, W_ - 6, H - 6);
     g.fillStyle = "#2a2018"; g.textAlign = "center"; fit(g, w.title || "", W_ * .92, `600 %px ${MINCHO}`, Math.round(H * .36)); g.fillText(w.title || "", W_ / 2, H * .45);
     g.fillStyle = "#5a4a34"; fit(g, who, W_ * .92, `%px ${GOTH}`, Math.round(H * .25)); g.fillText(who, W_ / 2, H * .84);
-  }, 768);
+  }, 768, lazy);
 }
 function quoteCard(w, acc) {
   return textPlane(1.1, 1.25, (g, W_, H) => {
