@@ -1930,6 +1930,9 @@ function enterWalk() {
   mode = "walk"; window.MLLoader?.done(); $("boot").classList.add("gone"); setTimeout(() => { $("boot").hidden = true; }, 1000);
   $("top").hidden = false; $("shelfBar").hidden = space !== "library"; applyOpts();
   zone.key = null; setZone(zoneOf(), true); stage.focus({ preventScroll: true });
+  // 2026-11-09：?room=slug で、その部屋の中から始める（Qualia/yose の札から直接行く）
+  const R0 = new URLSearchParams(location.search).get("room"), ri = rooms.findIndex(r => r.slug === R0);
+  if (ri >= 0 && !enterWalk._r) { enterWalk._r = 1; enterRoom(ri, () => freeTalk([T.rooms[ri].intro[0]])); }
 }
 function showHint() {
   if (store.get("smm-hint", false)) return; store.set("smm-hint", true);
