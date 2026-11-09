@@ -1944,7 +1944,7 @@ function showHint() {
 let woke = false;
 const OTO_EARLY = new URLSearchParams(location.search).get("mode") === "oto";
 // はじめの合図（2026-10-14 11 人：はじめの画面に「押すとはじまる」の合図がなかった）
-const startCue = (() => { const d = document.createElement("div"); d.id = "startCue"; d.setAttribute("aria-hidden", "true"); d.textContent = "画面を押すと、碧の案内がはじまります（音が出ます）"; document.body.appendChild(d); return d; })();
+const startCue = (() => { const d = document.createElement("div"); d.id = "startCue"; d.setAttribute("aria-hidden", "true"); d.textContent = "画面を押すと、碧の案内がはじまります（音が出ます）"; const g = document.querySelector("#guide .txt"); g ? g.insertBefore(d, g.firstChild) : document.body.appendChild(d); return d; })();
 function wake() {   // はじめて押したとき：音の仕組みを立て、碧がひとこと
   if (woke || mode !== "walk") return; woke = true; startCue.remove();
   AUD.init(); AUD.zone(ambOf(zone.key)); $("guide").hidden = false; const aoiStanding = aoi?.visible && A.fade >= 1; if (!aoiStanding) aoiJump();   // もう立っていれば、跳ばさない（2026-10-14）

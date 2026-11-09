@@ -339,6 +339,8 @@ body.oto #hint,body.oto #zones{display:none!important}
 #startCue{background:none;border:0;text-shadow:0 0 2px rgba(3,6,15,.95),0 1px 10px rgba(3,6,15,.85);font-family:var(--mu-serif);font-size:14px;letter-spacing:.06em;color:var(--mu-ink)}
 #hint span{background:var(--mu-panel);border-color:var(--mu-line);border-radius:var(--mu-r-round);font-family:var(--mu-serif);font-size:14px;box-shadow:none;backdrop-filter:var(--mu-blur);-webkit-backdrop-filter:var(--mu-blur)}
 @media (max-width:440px){#acts{margin:6px 30px 0;gap:6px}#acts .btn{min-height:var(--mu-hit);font-size:12.5px;padding:0 12px;letter-spacing:.06em}#say{font-size:13.5px;line-height:1.65}#startCue{font-size:13px}}
+@media (max-width:440px){#where{transition:opacity .4s}body:has(#hint.on) #where{opacity:0}}
+#guide #startCue{position:static;transform:none;white-space:normal;text-align:center;padding:0 0 6px;width:auto}
 </style>
 <script type="importmap">
 {"imports":{"three":"./vendor/three/build/three.module.js",
@@ -480,10 +482,11 @@ body.oto #hint,body.oto #zones{display:none!important}
 })();
 </script>
 <script src="data/museum.js"></script>
+<script>/* 本の見開き（大きい）は館が出てから読む（2026-11-09 起動を軽く）。音で巡る館はすぐ読む */addEventListener('DOMContentLoaded',function(){setTimeout(function(){var v=document.createElement('script');v.src='data/pages.js';document.body.appendChild(v)},/[?&]mode=oto/.test(location.search)?0:1500)});</script>
 <script>/* 碧の声の表（大きい）は、館が組み上がってから読む（2026-11-03 起動 2 秒） */addEventListener('load',function(){setTimeout(function(){var v=document.createElement('script');v.src='data/voice.js';v.onload=function(){window.__voiceReady&&__voiceReady()};v.onerror=function(){window.VOICE=window.VOICE||{};window.__voiceReady&&__voiceReady()};document.body.appendChild(v)},300)});</script>
 <script src="data/books.js" onerror="window.BOOKS=[]"></script>
 <script src="data/anim.js" onerror="window.ANIM=[]"></script>
-<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261103-late';document.body.appendChild(s);}</script>
+<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261109-cue';document.body.appendChild(s);}</script>
 <noscript><p style="padding:20px">この博物館は JavaScript で動きます。</p></noscript>
 </body>
 </html>
