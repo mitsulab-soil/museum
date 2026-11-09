@@ -1219,6 +1219,7 @@ addEventListener("pointerup", e => {
   if (!wasDrag) pick(e.clientX, e.clientY);
 });
 addEventListener("pointercancel", () => { touches = 0; down = null; dragging = false; });
+const EMBED = document.documentElement.classList.contains("embed");
 function rayAt(x, y) { ndc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); }
 const hoverRing = new THREE.Mesh(new THREE.RingGeometry(.2, .26, 40), new THREE.MeshBasicMaterial({ color: 0xe7cf93, transparent: true, opacity: .4, depthWrite: false }));
 hoverRing.rotation.x = -Math.PI / 2; hoverRing.visible = false; scene.add(hoverRing);
@@ -1241,6 +1242,7 @@ function pick(x, y) {
   const vis = clickables.filter(o => { let p = o; while (p) { if (!p.visible) return false; p = p.parent; } return true; });
   const hits = ray.intersectObjects([...vis, ...floors, ...blockers, ...ceils], false);
   const h = hits[0]; if (!h) return;
+  if (EMBED && (blockers.includes(h.object) || ceils.includes(h.object))) return;   // 2026-11-09：yose の中では壁を押しても暗い壁の前へ移らない
   if (blockers.includes(h.object) || ceils.includes(h.object)) {
     const c = camera.position, dx = h.point.x - c.x, dz = h.point.z - c.z, d = Math.min(Math.hypot(dx, dz), 30);
     let q = null;
