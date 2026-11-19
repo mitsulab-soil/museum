@@ -1725,6 +1725,7 @@ function workHTML(w) {
 function openPanel(k, w) {
   w = w || k.works.find(x => x.f) || k.works[0];
   const r = rooms[k.room]; curPanel = { k, w };
+  outAsk.seen.add(k);
   if (tour.on && !tour.susp && !SP.paused) { pauseSpeech(true); panelPaused = true; }
   const thumbs = k.works.map((x, i) => x.f
     ? `<button data-w="${i}" aria-label="${esc(x.title)}" aria-current="${x === w}"><img loading="lazy" src="${esc(x.f)}" alt=""></button>`
@@ -1746,7 +1747,16 @@ function openPanel(k, w) {
   if (isTouch) fold(true);
   $("panelX").focus({ preventScroll: true });
 }
-function closePanel() { if ($("panel").hidden) return; $("panel").hidden = true; document.body.classList.remove("panel-open"); curPanel = null; stopSound(); if (isTouch) fold(false); if (panelPaused) { panelPaused = false; pauseSpeech(false); } }
+function closePanel() { if ($("panel").hidden) return; $("panel").hidden = true; document.body.classList.remove("panel-open"); curPanel = null; stopSound(); if (isTouch) fold(false); if (panelPaused) { panelPaused = false; pauseSpeech(false); } outAskTry(); }
+// 2026-11-20 本人：札を 3 つ見たあとに一度だけ、碧が館の外へ目を向ける問いを一つ置く（字幕だけ・くり返さない・話や巡りの途中は割りこまない）
+const outAsk = { seen: new Set(), done: store.get("mu.outAsk", false), line: "この館を出たら、いちばん近くにいる生き物を一つ探してみて。" };
+function outAskTry() {
+  if (outAsk.done || outAsk.seen.size < 3) return;
+  setTimeout(() => {
+    if (outAsk.done || OTO || SP.resolve || mode !== "walk" || !$("panel").hidden || (tour.on && !tour.susp)) return;
+    outAsk.done = true; store.set("mu.outAsk", true); freeTalk([outAsk.line]);
+  }, 1400);
+}
 const Z = { s: 1, x: 0, y: 0, pts: new Map(), d0: 0, s0: 1 };
 function openZoom(w) {
   const z = $("zoom"), im = z.querySelector("img"); im.src = w.f; im.alt = w.title;
