@@ -1500,7 +1500,7 @@ function aoiTick(dt) {
   }
   if (A.gaze) { if (lookWork) A.gaze.position.set(A.look.x, 1.9 + groundY(A.look.x, A.look.z), A.look.z); else if (watching) A.gaze.position.copy(wt.pos); else A.gaze.position.copy(camera.position); }
   A.talkT += dt;
-  if (AM) { amTick(dt, wt, watching, lookWork); if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); } return; }
+  if (AM) { amTick(dt, wt, watching, lookWork); if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); document.body.classList.toggle("aoifade", A.fade < 1); } return; }
   if (A.springs && !RM) { const t = performance.now() / 1000; for (const s of A.springs) { s.j.settings.gravityDir.set(s.g.x + .22 * Math.sin(t * .63 + s.g.y), s.g.y, s.g.z + .14 * Math.sin(t * .41)).normalize(); s.j.settings.gravityPower = Math.max(s.p, .05); } }
   aoiPose(dt, A.sp, wrapA(toCam - A.yaw), lookWork ? wrapA(Math.atan2(A.look.x - A.pos.x, A.look.z - A.pos.z) - A.yaw) : 0);
   // 口：声の大きさに合わせる（声を切っているときは、字幕のあいだ小さく）
@@ -1516,7 +1516,7 @@ function aoiTick(dt) {
   vrm.update(dt);
   // 2026-10-07 本人「碧が登場するときにワンピースが不自然に大きく揺れる」→ 現れてしばらくは、揺れものをいまの姿勢で止めておく（そのあいだに姿がゆっくり出る）
   if (A.calm > 0) { A.calm -= dt; const sbm = vrm.springBoneManager; sbm?.setInitState?.(); sbm?.reset?.(); }
-  if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); }
+  if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); document.body.classList.toggle("aoifade", A.fade < 1); }
 }
 // 2026-10-13：碧の体は共通の部品（AoiMotion v4）。館に固有の仕草だけを、部品が組んだ姿勢の上に重ねる。
 //   見る先＝話題の作品／抜け出た生きもの／見る人。指す＝作品の話の 2 文目。表情＝生きものが出ているあいだは笑み、手にとまった瞬間は少し大きく。
@@ -1749,13 +1749,17 @@ function openPanel(k, w) {
 }
 function closePanel() { if ($("panel").hidden) return; $("panel").hidden = true; document.body.classList.remove("panel-open"); curPanel = null; stopSound(); if (isTouch) fold(false); if (panelPaused) { panelPaused = false; pauseSpeech(false); } outAskTry(); }
 // 2026-11-20 本人：札を 3 つ見たあとに一度だけ、碧が館の外へ目を向ける問いを一つ置く（字幕だけ・くり返さない・話や巡りの途中は割りこまない）
-const outAsk = { seen: new Set(), done: store.get("mu.outAsk", false), line: "この館を出たら、いちばん近くにいる生き物を一つ探してみて。" };
+const outAsk = { seen: new Set(), done: store.get("mu.outAsk", false), line: "いま見た絵の色は、外のどこにありそう？　帰り道で探してみて。" };
 function outAskTry() {
-  if (outAsk.done || outAsk.seen.size < 3) return;
-  setTimeout(() => {
-    if (outAsk.done || OTO || SP.resolve || mode !== "walk" || !$("panel").hidden || (tour.on && !tour.susp)) return;
+  if (outAsk.done || outAsk.seen.size < 1) return;
+  if (outAsk.wait) return; let n = 0;   // 2026-11-20：碧が話し終えるのを待って置く（話の途中なら少し待つ・最大 30 秒）
+  const go = () => {
+    if (outAsk.done || OTO || mode !== "walk" || !$("panel").hidden || (tour.on && !tour.susp)) { outAsk.wait = 0; return; }
+    if (SP.resolve && ++n < 20) { outAsk.wait = setTimeout(go, 1500); return; }
+    outAsk.wait = 0; if (SP.resolve) return;
     outAsk.done = true; store.set("mu.outAsk", true); freeTalk([outAsk.line]);
-  }, 1400);
+  };
+  outAsk.wait = setTimeout(go, 1400);
 }
 const Z = { s: 1, x: 0, y: 0, pts: new Map(), d0: 0, s0: 1 };
 function openZoom(w) {
@@ -1887,9 +1891,9 @@ function credits() {
     ? (a.page ? `<li>${esc(where)}：音楽「${esc(a.title)}」${esc(a.who)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝モノラル化・音量・ループ）</li>`
               : `<li>${esc(where)}：音楽「${esc(a.title)}」${esc(a.who)}・${esc(a.lic)}</li>`)
     : `<li>${esc(where)}：録音「${esc(a.label)}」${esc(a.who)}・${esc(a.where)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a></li>`).join("");
-  return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>学校の授業で、教室の画面に映して使ってかまいません（作品の権利の表示は、作品の札のとおり）。めやすは、広間だけなら 2 分、一部屋なら 10 分ほど。</p><p>展示の中身は、mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。
-  図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。
-  一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。<b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></p>
+  return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>学校の授業で、教室の画面に映して使ってかまいません（作品の権利の表示は、作品の札のとおり）。めやすは、広間だけなら 2 分、一部屋なら 10 分ほど。</p><h3>展示の中身</h3><ul><li>mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。</li>
+  <li>図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。</li><li>権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。</li>
+  <li>一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。</li><li><b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></li></ul>
   <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点と、部屋の中の絵の ${EX.roomItems.length} 点（碧がその絵の話をしているあいだ、抜け出てきます）は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
   <h3>生きものの鳴き声（絵から出ているとき・さわったとき）</h3><ul>${[...new Set(Object.values(CALLS))].map(c => `<li>${esc(c.label)}：${esc(c.who)}・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・音量）</li>`).join("")}</ul>
   <h3>生きものの動きの音（羽ばたき・水音・足音）</h3><ul>${Object.values(SFX).map(c => `<li>${esc(c.label)}：${esc(c.who)}（Freesound）・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・モノラル・音量）</li>`).join("")}</ul>

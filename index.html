@@ -341,6 +341,14 @@ body.oto #hint,body.oto #zones{display:none!important}
 @media (max-width:440px){#acts{margin:6px 30px 0;gap:6px}#acts .btn{min-height:var(--mu-hit);font-size:12.5px;padding:0 12px;letter-spacing:.06em}#say{font-size:14.5px;line-height:1.65}#startCue{font-size:13px}}
 @media (max-width:440px){#where{transition:opacity .4s}body:has(#hint.on) #where{opacity:0}}
 #guide #startCue{position:static;transform:none;white-space:normal;text-align:center;padding:0 0 6px;width:auto}
+/* 2026-11-20 開いた直後の札：絵文字をやめ、明朝の札と細い線に */
+#hint span{min-height:44px;box-sizing:border-box;border-radius:3px;border:1px solid rgba(201,164,92,.45);background:rgba(14,11,8,.62);font-family:var(--mu-serif,serif);font-size:15px;letter-spacing:.08em;padding:0 16px 0 14px;gap:10px}
+#hint span::before{content:"";width:1px;height:18px;background:var(--gold,#c9a45c);opacity:.9;flex:none}
+#hint.on span:first-child::before{animation:none}
+/* 碧が現れる途中（網目の姿）は字幕を出さない・場所の札は壁の札と重なっても読めるよう薄い地を敷く */
+#guide{transition:opacity .35s}body.aoifade #guide{opacity:0}
+#where{background:rgba(10,8,6,.5);border:1px solid rgba(201,164,92,.3);border-radius:3px;padding:6px 12px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.cred-all ul{margin:4px 0 8px;padding-left:1.2em}.cred-all li{margin:2px 0;line-height:1.7}
 </style>
 <script type="importmap">
 {"imports":{"three":"./vendor/three/build/three.module.js",
@@ -405,7 +413,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <div id="zoom" hidden role="dialog" aria-label="作品の拡大"><img alt=""><div class="cap"></div><button class="ico x" id="zoomX" aria-label="拡大を閉じる">✕</button></div>
 <div id="joy" hidden aria-hidden="true"><i></i></div>
 <div id="toast" class="mu-toast" role="status"></div>
-<div id="hint" hidden aria-hidden="true"><span><b>👆</b>押して歩く</span><span><b>↔</b>なぞって見回す</span><span><b>🖼</b>絵の前で止まると、碧が話す</span></div>
+<div id="hint" hidden aria-hidden="true"><span>押して歩く</span><span>なぞって見回す</span><span>絵の前で止まると、碧が話す</span></div>
 
 <nav id="shelfBar" hidden aria-label="書架の本"></nav>
 <section id="zones" hidden aria-label="この部屋の区画"></section>
