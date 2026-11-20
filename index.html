@@ -156,7 +156,7 @@ summary{cursor:pointer;font-size:16px;min-height:44px;line-height:44px}
 .lst li button{width:100%;min-height:44px;text-align:left;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card2);font-size:16px}
 .lst li small{color:var(--dim);font-size:14px;margin-left:4px}
 .opt{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:16px;min-height:44px}
-.opt input{width:22px;height:22px}
+.opt input{width:22px;height:22px;flex:none}
 .cred-all{font-size:15px;line-height:1.85;color:var(--dim)}
 #joy{position:fixed;left:18px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 150px);width:120px;height:120px;border-radius:50%;border:1px solid var(--line);background:color-mix(in srgb,var(--card) 55%,transparent);z-index:5;touch-action:none}
 #joy i{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:var(--gold);opacity:.85}
@@ -327,18 +327,18 @@ body.oto #hint,body.oto #zones{display:none!important}
 #where b{font-family:var(--mu-serif);font-size:15px;letter-spacing:.12em;color:#eaf8fc}
 #where small{font-size:12.5px;letter-spacing:.06em;color:#eaf8fc;text-shadow:0 0 2px rgba(3,6,15,.95),0 1px 8px rgba(3,6,15,.9)}
 #mini{border-radius:var(--mu-r);border-color:var(--mu-line);background:var(--mu-panel);box-shadow:none}
-#guide{background:none;border:0;backdrop-filter:none;-webkit-backdrop-filter:none;text-shadow:0 0 2px rgba(3,6,15,.95),0 1px 10px rgba(3,6,15,.85);justify-content:center}
+#guide{background:none;border:0;backdrop-filter:none;-webkit-backdrop-filter:none;text-shadow:0 0 1px #03060f,0 0 3px #03060f,0 0 5px rgba(3,6,15,.95),0 0 10px rgba(3,6,15,.9),0 1px 18px rgba(3,6,15,.85);justify-content:center}
 #guide .txt{text-align:center}
-#say{font-family:var(--mu-serif);font-size:14.5px;line-height:1.75;letter-spacing:.04em;color:var(--mu-ink);word-break:auto-phrase;line-break:strict;text-wrap:balance}
+#say{font-family:var(--mu-serif);font-size:15.5px;font-weight:600;line-height:1.75;letter-spacing:.04em;color:#fff;word-break:auto-phrase;line-break:strict;text-wrap:balance}
 #acts{justify-content:center;gap:8px;margin:8px 34px 0}
 #acts .btn{min-height:var(--mu-hit);padding:0 18px;border-radius:var(--mu-r-round);font:600 13.5px/1 var(--mu-serif);letter-spacing:.1em;color:var(--mu-ink);background:var(--mu-panel);border:1px solid var(--mu-line);backdrop-filter:var(--mu-blur);-webkit-backdrop-filter:var(--mu-blur);text-shadow:none}
 #acts .btn.pri{background:var(--mu-panel);border-color:var(--mu-aoi);color:var(--mu-aoi-2)}
 #acts .ib{width:var(--mu-hit);padding:0}
 #guide.folded{background:var(--mu-panel);border:1px solid var(--mu-line)}
 #toast.mu-toast{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;top:calc(var(--mu-gt) + 120px);box-shadow:none;border-radius:var(--mu-r);font-size:14px}
-#startCue{background:none;border:0;text-shadow:0 0 2px rgba(3,6,15,.95),0 1px 10px rgba(3,6,15,.85);font-family:var(--mu-serif);font-size:14px;letter-spacing:.06em;color:var(--mu-ink)}
+#startCue{background:none;border:0;text-shadow:0 0 1px #03060f,0 0 3px #03060f,0 0 5px rgba(3,6,15,.95),0 1px 14px rgba(3,6,15,.85);font-family:var(--mu-serif);font-size:14px;letter-spacing:.06em;color:var(--mu-ink)}
 #hint span{background:var(--mu-panel);border-color:var(--mu-line);border-radius:var(--mu-r-round);font-family:var(--mu-serif);font-size:14px;box-shadow:none;backdrop-filter:var(--mu-blur);-webkit-backdrop-filter:var(--mu-blur)}
-@media (max-width:440px){#acts{margin:6px 30px 0;gap:6px}#acts .btn{min-height:var(--mu-hit);font-size:12.5px;padding:0 12px;letter-spacing:.06em}#say{font-size:13.5px;line-height:1.65}#startCue{font-size:13px}}
+@media (max-width:440px){#acts{margin:6px 30px 0;gap:6px}#acts .btn{min-height:var(--mu-hit);font-size:12.5px;padding:0 12px;letter-spacing:.06em}#say{font-size:14.5px;line-height:1.65}#startCue{font-size:13px}}
 @media (max-width:440px){#where{transition:opacity .4s}body:has(#hint.on) #where{opacity:0}}
 #guide #startCue{position:static;transform:none;white-space:normal;text-align:center;padding:0 0 6px;width:auto}
 </style>
@@ -456,7 +456,8 @@ body.oto #hint,body.oto #zones{display:none!important}
   <label class="opt">くっきり（コントラストを上げる）<input type="checkbox" id="optHi"></label>
   <label class="opt">碧の声（切ると字幕だけ）<input type="checkbox" id="optVoice" checked></label>
   <h2 style="margin-top:18px">操作</h2>
-  <p class="cred-all">床を押す＝そこへ歩く ／ 作品を押す＝前まで行って碧が話す（もう一度で札） ／ ドラッグ＝見回す ／ 地図＝部屋へ移る ／ キーボード＝W A S D・矢印で歩く、Q E で向きを変える、スペースで碧の話を止める・続ける、N で次へ、M で地図、Esc で閉じる。</p>
+  <p class="cred-all" style="line-height:2">床を押す＝そこへ歩く<br>作品を押す＝碧が話す（もう一度で札）<br>なぞる＝見回す<br>右上の地図＝部屋へ移る</p>
+  <p class="cred-all">キーボード＝W A S D・矢印で歩く、Q E で向きを変える、スペースで碧の話を止める・続ける、N で次へ、M で地図、Esc で閉じる。</p>
   <h2 style="margin-top:18px">出典とライセンス</h2>
   <div class="cred-all" id="credAll"></div>
   <p class="cred-all" style="margin-top:10px">© 2026 mitsulab. All rights reserved. この作品の文章・画像・音声・3D・プログラムの著作権は、別に示した他者の素材を除き mitsulab にあります。無断の複製・転載・改変と、AI の学習・生成への利用はお断りします（テキスト・データマイニングの権利を留保します）。<a href="https://mitsulab.jp/terms/#ai" target="_blank" rel="noopener">利用規約</a></p>
