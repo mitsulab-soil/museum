@@ -889,7 +889,7 @@ function setZone(z, quiet) {
   if (r && mode === "walk" && !(tour.on && !tour.susp) && !seen.rooms.has(r.i)) {
     seen.rooms.add(r.i); const I = T.rooms[r.i].intro;
     const amb = I.filter(x => /^(いま聞こえて|流れているのは)/.test(x));
-    setTimeout(() => { if (zone.i === r.i && !SP.resolve) { freeTalk([I[0], T.rooms[r.i].zones, ...amb].filter(Boolean)); talkKind = "greet"; } }, 900);
+    setTimeout(() => { if (zone.i === r.i && !SP.resolve && !outAsk.say && !outAsk.wait) { freeTalk([I[0], T.rooms[r.i].zones, ...amb].filter(Boolean)); talkKind = "greet"; } }, 900);
   }
   if (r && mode === "walk") showZones(r);
   else hideZones();
@@ -930,10 +930,16 @@ function exploreTick(dt) {
   }
   if (best) { explore.still = 0; explainBay(best); }
 }
+// 2026-11-21：作品の話のあいだ、碧が画面の中に入る横の位置（見る人と絵の距離と、画面の横の視野から決める。スマホの縦長では内へ寄せる）
+function aoiSideFor(viewerDist, want, fwd) {
+  const hf = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect);
+  const fit = Math.max(.4, (viewerDist - fwd) * Math.tan(hf) * .55);
+  return Math.sign(want) * Math.min(Math.abs(want), fit);
+}
 function explainBay(b) {
   seen.bays.add(b); explore.bay = b; talkKind = "bay"; talkAt = { i: b.r.i, j: b.k.j };
   const K = T.rooms[b.r.i].kei[b.k.j], narrow = innerWidth / innerHeight < .8, inv = new THREE.Vector3(me.pos.x, 0, me.pos.z).sub(b.center).applyAxisAngle(new THREE.Vector3(0, 1, 0), -b.facing);
-  A.goal = new THREE.Vector3(inv.x < -.8 ? (narrow ? .95 : 2.6) : (narrow ? -.95 : -2.6), 0, narrow ? 1.35 : 1.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), b.facing).add(b.center);
+  A.goal = new THREE.Vector3(aoiSideFor(Math.abs(inv.z), inv.x < -.8 ? (narrow ? .95 : 2.6) : (narrow ? -.95 : -2.6), narrow ? .8 : 1.4), 0, narrow ? .8 : 1.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), b.facing).add(b.center);
   A.look = b.center.clone();
   curActs = () => [["札をひらく", () => openPanel(b.k, b.slots[0]?.w), true], ["⏭", skipLine, false, "このことばをとばす"], ["部屋をえらぶ", openMap]];
   setActs(curActs()); $("guide").hidden = false; if ($("guide").classList.contains("folded")) fold(false);
@@ -1032,12 +1038,14 @@ function aoiGestures(text, kana, dur) {
   if (!g.length && dur > 2.2 && (aoiGestures.n = (aoiGestures.n || 0) + 1) % 2) g.push({ t: Math.min(.9, dur * .25), type: "metaphoric", shape: "present", hand: aoiGestures.n % 4 === 1 ? "right" : "left", hold: .7, big: true });
   return g;
 }
+// 2026-11-21：外へ目を向ける問いの字幕のあいだ（と言い終えて少しのあいだ）は、選ぶ札を薄くして余韻を残す（押せば押せる）
+const ASKS = new Set(["ここを出たら、空か足もとに、絵と同じ色を一つ探してみてください。", "いま見た絵の色は、外のどこにありそう？　帰り道で探してみて。", "この館を出たら、いちばん近くにいる生き物を一つ探してみて。"]);
 function speakLine(text) {
   if (!window.VOICE) return VOICE_P.then(() => speakLine(text));
   return new Promise(res => {
-    SP.cur = text; $("say").textContent = text; A.talkT = 0; setTalking(true); window.__said = (window.__said || []).concat([text]).slice(-30);
+    SP.cur = text; $("say").textContent = text; { const g = $("guide"), q = ASKS.has(text); clearTimeout(speakLine.qt); if (q) g.classList.add("asking"); else g.classList.remove("asking"); } A.talkT = 0; setTalking(true); window.__said = (window.__said || []).concat([text]).slice(-30);
     const v = (window.VOICE || {})[text];
-    const done = () => { clearTimeout(SP.timer); SP.timer = null; SP.resolve = null; SP.playing = false; setTalking(false); AUD.setDuck(1); AM?.stopSpeaking(); res(); };
+    const done = () => { if (ASKS.has(text)) speakLine.qt = setTimeout(() => $("guide").classList.remove("asking"), 3200); clearTimeout(SP.timer); SP.timer = null; SP.resolve = null; SP.playing = false; setTalking(false); AUD.setDuck(1); AM?.stopSpeaking(); res(); };
     // 口・身ぶり・視線（AoiMotion）：声の再生位置に合わせる。声を切っているときは字幕の長さで
     if (AM) { const el = AUD.voice; AM.speak(v && voiceOn() ? { kana: v.kana, dur: v.dur, clock: () => el.currentTime, level: () => clamp(AUD.level() * 7, 0, 1), gesture: aoiGestures(text, v.kana, v.dur) } : { text, dur: est(text) / 1000, gesture: aoiGestures(text, "", est(text) / 1000) }); }
     SP.resolve = done;
@@ -1325,7 +1333,7 @@ function approach(bay, sl, then) {
   if (tour.on && !tour.susp) suspendTour();
   const { v, look } = standFor(bay, sl);
   if (Math.hypot(me.pos.x - v.x, me.pos.z - v.z) < 1.2) { me.yaw += wrapA(Math.atan2(-(look.x - me.pos.x), -(look.z - me.pos.z)) - me.yaw); openPanel(bay.k, sl?.w); then?.(); return; }
-  A.goal = new THREE.Vector3((sl?.x || 0) < -1 ? 1.1 : -1.25, 0, 1.45).applyAxisAngle(new THREE.Vector3(0, 1, 0), bay.facing).add(bay.center);
+  A.goal = new THREE.Vector3(aoiSideFor(Math.hypot(v.x - bay.center.x, v.z - bay.center.z), (sl?.x || 0) < -1 ? 1.1 : -1.25, 1.45), 0, 1.45).applyAxisAngle(new THREE.Vector3(0, 1, 0), bay.facing).add(bay.center);
   A.look = look.clone(); A.point = 1;
   goTo(v, look, () => {
     if (then) { openPanel(bay.k, sl?.w); then(); return; }
@@ -1755,9 +1763,9 @@ function outAskTry() {
   if (outAsk.wait) return; let n = 0;   // 2026-11-20：碧が話し終えるのを待って置く（話の途中なら少し待つ・最大 30 秒）
   const go = () => {
     if (outAsk.done || OTO || mode !== "walk" || !$("panel").hidden || (tour.on && !tour.susp)) { outAsk.wait = 0; return; }
-    if (SP.resolve && ++n < 20) { outAsk.wait = setTimeout(go, 1500); return; }
+    if (SP.resolve && ++n < 60) { outAsk.wait = setTimeout(go, 1500); return; }   // 2026-11-21：作品の話が長くても待つ（最大 90 秒）
     outAsk.wait = 0; if (SP.resolve) return;
-    outAsk.done = true; store.set("mu.outAsk", true); freeTalk([outAsk.line]);
+    outAsk.say = true; freeTalk([outAsk.line]).then(ok => { outAsk.say = false; if (ok) { outAsk.done = true; store.set("mu.outAsk", true); } });   // 2026-11-21：言い終えたときだけ済みに（部屋の案内などに切られたら、次に札を閉じたときにもう一度）
   };
   outAsk.wait = setTimeout(go, 1400);
 }
@@ -1892,7 +1900,7 @@ function credits() {
               : `<li>${esc(where)}：音楽「${esc(a.title)}」${esc(a.who)}・${esc(a.lic)}</li>`)
     : `<li>${esc(where)}：録音「${esc(a.label)}」${esc(a.who)}・${esc(a.where)}・${licHTML(a.lic, a.licurl)}・<a href="${esc(a.page)}" target="_blank" rel="noopener">元のファイル</a></li>`).join("");
   return `<p>つくり：<a href="https://mitsulab.jp" target="_blank" rel="noopener">mitsulab（mitsulab.jp）</a>。お問い合わせは official@mitsulab.jp へ。</p><p>学校の授業で、教室の画面に映して使ってかまいません（作品の権利の表示は、作品の札のとおり）。めやすは、広間だけなら 2 分、一部屋なら 10 分ほど。</p><h3>展示の中身</h3><ul><li>mitsulab の連作《森羅百景》のデータです（森羅百景の ${M.count.all_kei} 景のうち、絵と文学のある ${M.count.kei} 景・作品 ${M.count.works} 点〈図版と写真 ${M.count.img}・文学の引用 ${M.count.bun}〉）。</li>
-  <li>図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。</li><li>権利の内訳：${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。</li>
+  <li>図版は保護期間の満了した美術作品（各館のオープンアクセス・CC0／パブリックドメイン）と、Wikimedia Commons の CC の写真です。</li><li><details class="licd"><summary>＋ 権利の内訳</summary>${Object.entries(lic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${v}`).join("・")}。</details></li>
   <li>一点ごとの題・作者・所蔵・権利・元のページは、作品の札と、各作品の小さな札に出しています。</li><li><b>CC BY-SA の写真と録音は、この画面の中だけで使います。</b></li></ul>
   <h3>企画展「絵から出てくる生きもの」</h3><p>円堂の ${EX.items.length} 点と、部屋の中の絵の ${EX.roomItems.length} 点（碧がその絵の話をしているあいだ、抜け出てきます）は、CC0／パブリックドメインの作品だけから選び、mitsulab が生きものを切り抜いて、元の絵からその部分を消し（まわりの色でふさぐ）、3D の中で動かしています（作り変え）。元の作品の題・作者・所蔵・権利は、絵の下の札と「札をひらく」で。</p>
   <h3>生きものの鳴き声（絵から出ているとき・さわったとき）</h3><ul>${[...new Set(Object.values(CALLS))].map(c => `<li>${esc(c.label)}：${esc(c.who)}・${licHTML(c.lic, c.licurl)}・<a href="${esc(c.page)}" target="_blank" rel="noopener">元のファイル</a>（改変＝一部を切り出し・音量）</li>`).join("")}</ul>

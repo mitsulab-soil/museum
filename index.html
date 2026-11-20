@@ -374,11 +374,27 @@ body.oto #hint,body.oto #zones{display:none!important}
 
 <!-- Start the same 3D module graph and Aoi asset while the data scripts arrive.
      modulepreload does not execute museum.js before window.MUSEUM/VOICE/BOOKS. -->
-<link rel="modulepreload" href="museum.js?v=20261120-ask" fetchpriority="high">
+<link rel="modulepreload" href="museum.js?v=20261121-p2" fetchpriority="high">
 <link rel="modulepreload" href="vendor/three/examples/jsm/loaders/GLTFLoader.js">
 <link rel="modulepreload" href="vendor/three/examples/jsm/libs/meshopt_decoder.module.js">
 <link rel="modulepreload" href="vendor/three-vrm/three-vrm.module.min.js">
 
+<style>/* 2026-11-21 夜：地図の凡例・問いの字幕のあいだは選ぶ札を控えめに・権利の内訳は＋に */
+.mapkey{margin:2px 0 8px;font-size:14px;line-height:1.7;color:var(--dim,#cfc4ad);text-align:center}
+.mapkey i{font-style:normal;white-space:nowrap;margin:0 6px}
+.mapkey span{display:inline-block;vertical-align:middle;margin:0 5px 0 2px}
+.mapkey .k1{width:18px;height:9px;border-radius:2px;background:linear-gradient(90deg,#c2a077,#6c8d71,#a59fc3)}
+.mapkey .k2{width:16px;height:3px;background:#f3c969;border-radius:2px}
+.mapkey .k3{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #ff4d3a}
+.mapkey .k4{width:10px;height:10px;border-radius:50%;background:#4fd1c1;border:1px solid #fff}
+#acts{transition:opacity .9s ease}
+#guide.asking #acts{opacity:.22}
+#guide.asking #acts:hover,#guide.asking #acts:focus-within{opacity:1}
+details.licd{border:0;padding:0}
+details.licd summary{cursor:pointer;min-height:44px;display:flex;align-items:center;list-style:none}
+details.licd summary::-webkit-details-marker{display:none}
+details.licd[open] summary{min-height:32px}
+</style>
 </head>
 <body>
 <script src="loader/loader.js" data-title="Qualia Museum" data-en="Qualia Dive" data-icon="favicon/icon.svg" data-replace="boot"></script>
@@ -443,6 +459,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <div id="map" class="sheet" hidden role="dialog" aria-label="館内の地図"><div class="in">
   <button class="ico x" data-close="map" aria-label="地図を閉じる">✕</button>
   <h2>館内の地図</h2>
+  <p class="mapkey"><i><span class="k1"></span>色の帯＝部屋（一部屋ごとに色）</i> <i><span class="k2"></span>金の線＝入口</i> <i><span class="k3"></span>いまここ</i> <i><span class="k4"></span>碧</i></p>
   <canvas id="bigmap" width="720" height="720" aria-label="館の平面図。部屋を押すとその入口へ移る"></canvas>
   <div class="rooms" id="roomBtns"></div>
 </div></div>
@@ -495,7 +512,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 <script>/* 碧の声の表（大きい）は、館が組み上がってから読む（2026-11-03 起動 2 秒） */addEventListener('load',function(){setTimeout(function(){var v=document.createElement('script');v.src='data/voice.js';v.onload=function(){window.__voiceReady&&__voiceReady()};v.onerror=function(){window.VOICE=window.VOICE||{};window.__voiceReady&&__voiceReady()};document.body.appendChild(v)},300)});</script>
 <script src="data/books.js" onerror="window.BOOKS=[]"></script>
 <script src="data/anim.js" onerror="window.ANIM=[]"></script>
-<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261120-ask';document.body.appendChild(s);}</script>
+<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261121-p2';document.body.appendChild(s);}</script>
 <noscript><p style="padding:20px">この博物館は JavaScript で動きます。</p></noscript>
 </body>
 </html>
