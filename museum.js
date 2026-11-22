@@ -1443,7 +1443,7 @@ function followSpot() {
     }
   }
   // ふだんは見る人の右前（となりを歩く）。スマホの縦長では近め・まん中寄り
-  const narrow = innerWidth / innerHeight < .8, lib_ = space === "library", F = lib_ ? (narrow ? 1.6 : 1.0) : narrow ? 3.2 : 3.4, X = lib_ ? (narrow ? 1.1 : 1.8) : narrow ? .8 : 1.25;   /* 2026-11-22 スマホで押して進むと碧の真後ろに寄り、髪が画面の右をふさいだ → 進む道からもう少し右へ */   /* 2026-11-22 PC で碧の足もとが切れ気味 → 少し奥に */   /* 2026-11-22 スマホで右端に寄っていた */
+  const narrow = innerWidth / innerHeight < .8, lib_ = space === "library", F = lib_ ? (narrow ? 1.6 : 1.0) : narrow ? 3.9 : 3.4, X = lib_ ? (narrow ? 1.1 : 1.8) : narrow ? .62 : 1.25;   /* 2026-11-22 スマホで押して進むと碧の真後ろに寄り、髪が画面の右をふさいだ → 進む道からもう少し右へ */   /* 2026-11-22 PC で碧の足もとが切れ気味 → 少し奥に */   /* 2026-11-22 スマホで右端に寄っていた */
   const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw), rx = -fz, rz = fx;
   let x = me.pos.x + fx * F + rx * X, z = me.pos.z + fz * F + rz * X;
   for (let k = 0; k < 6 && !walkable(x, z, 1.3); k++) { x = (x + me.pos.x) / 2; z = (z + me.pos.z) / 2; }
