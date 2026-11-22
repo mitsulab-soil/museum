@@ -5,7 +5,7 @@
 <script data-embed>/* 2026-11-09：?embed=1 は集約アプリ（Qualia/yose・Qualium x/31）の中で、自分の見出しを隠す。引数なしは今までどおり */if(/[?&]embed=1/.test(location.search))document.documentElement.classList.add("embed")</script><style>.embed #top .mu-logo{display:none!important}</style>
 <meta name="tdm-reservation" content="1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Qualia Museum</title>
+<title>Qualia/museum</title>
 <link rel="icon" href="favicon/favicon.ico" sizes="any">
 <link rel="icon" href="favicon/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="favicon/apple-touch-icon.png">
@@ -344,6 +344,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 @media (max-width:440px){#where{transition:opacity .4s}body:has(#hint.on) #where{opacity:0}}
 #guide #startCue{position:static;transform:none;white-space:normal;text-align:center;padding:0 0 6px;width:auto}
 /* 2026-11-20 開いた直後の札：絵文字をやめ、明朝の札と細い線に */
+@media (max-width:440px){#hint{gap:6px;width:calc(100vw - 32px);top:calc(max(10px,env(safe-area-inset-top)) + 108px)!important}#hint span{font-size:13px!important;min-height:34px!important;padding:0 10px 0 9px!important}#hint span:nth-child(3){display:none!important}}   /* 2026-11-22 スマホで三つの札が部屋の名札に重なる */
 #hint span{min-height:44px;box-sizing:border-box;border-radius:3px;border:1px solid rgba(201,164,92,.45);background:rgba(14,11,8,.62);font-family:var(--mu-serif,serif);font-size:15px;letter-spacing:.08em;padding:0 16px 0 14px;gap:10px}
 #hint span::before{content:"";width:1px;height:18px;background:var(--gold,#c9a45c);opacity:.9;flex:none}
 #hint.on span:first-child::before{animation:none}
@@ -407,7 +408,7 @@ details.licd[open] summary{min-height:32px}
 <div id="fade"></div>
 
 <header id="top" hidden>
-  <div id="where" aria-live="polite"><b id="whereName">Qualia Museum</b><small id="whereSub">入口の広間</small></div>
+  <div id="where" aria-live="polite"><b id="whereName">Qualia/museum</b><small id="whereSub">入口の広間</small></div>
   <div id="tools">
     <button class="mu-icon" id="homeBtn" aria-label="広間のまん中へもどる" title="広間のまん中へもどる"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></button>
     <button class="mu-icon" id="muteBtn" aria-label="音を消す" aria-pressed="false" title="音"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>
@@ -494,7 +495,7 @@ details.licd[open] summary{min-height:32px}
 <!-- 2026-10-07 本人「TOP の選択のページをやめる：開いたらはじめから博物館の中にいる（入口に立っている）形に」。読み込みのあいだだけ、館の名と細い帯 -->
 <div id="boot" role="status" aria-live="polite">
   <div class="b-in">
-    <div class="b-name"><span data-n="museum">Qualia Museum</span></div>
+    <div class="b-name"><span data-n="museum">Qualia/museum</span></div>
     <div id="prog"><i></i></div>
     <p id="startWarn" hidden></p>
   </div>

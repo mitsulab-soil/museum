@@ -17,7 +17,7 @@ import { createHolo } from "./holo.js?v=20261014p2";
 // 碧の動きと表情（共通の部品 AoiMotion の写し・2026-10-13）。kit/ は 12_ブランド/_共通3D/kit/ の aoi_motion.js・aoi_mocap.js・aoi_mocap.json・aoi_robe.js の写し
 import { AoiMotion, inferGestures, warmAoi, aoiYield } from "./kit/aoi_motion.js?v=62";
 
-const M = window.MUSEUM, T = M.tour, NAMES = M.names;   // 表示する名前は names.json だけから
+const M = window.MUSEUM, T = M.tour, NAMES = M.names;   NAMES.museum = "Qualia/museum";   /* 2026-11-22 表示名を Qualia/◯◯ にそろえる（声の文は変えない） */   // 表示する名前は names.json だけから
 // 碧の声の表（data/voice.js・約 0.6 MB）は起動の道すじから外し、あとから届く（2026-10-23 起動 5 秒）。届く前に話すときは少し待つ
 const VOICE_P = window.VOICE ? Promise.resolve() : new Promise(r => { window.__voiceReady = r; setTimeout(r, 20000); }).then(() => { window.VOICE = window.VOICE || {}; });
 window.__muBoot = true;
@@ -1527,7 +1527,7 @@ function aoiTick(dt) {
   A.mouth += (want - A.mouth) * ease(dt, 18); vrm.expressionManager?.setValue("aa", A.mouth * .8);
   if (A.face?.length) {   // ほほえみ（口角）・目を細める・眉をゆるめる。とまった瞬間は少し笑う
     const g = !RM && A.gig != null ? Math.sin(Math.min(1, A.gig / 1.4) * Math.PI) : 0, j = RM ? A.joy * .6 : A.joy;
-    const eye = clamp(j * .3 + g * .35, 0, .62), mth = clamp((j * .55 + g * .35) * (1 - A.mouth * .55), 0, .85), brw = clamp(j * .55 + g * .2, 0, .8);
+    const eye = clamp(j * .14 + g * .2, 0, .3),   /* 2026-11-22 目を細めすぎて眠そうに見えた → 細める幅を半分に */ mth = clamp((j * .55 + g * .35) * (1 - A.mouth * .55), 0, .85), brw = clamp(j * .55 + g * .2, 0, .8);
     for (const f of A.face) { const I = f.m.morphTargetInfluences; if (!I) continue; I[f.eye] = eye; if (f.mth != null) I[f.mth] = mth; if (f.brw != null) I[f.brw] = brw; }
     A.eyeJoy = eye;
   }
