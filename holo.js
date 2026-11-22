@@ -84,7 +84,7 @@ export function createHolo(o) {
   const pm = buildModel({ labels: true, labelW: 11 }); pm.g.scale.setScalar(SC_P); pm.g.position.y = .95; ped.add(pm.g);
   pm.g.traverse(m => { if (m.userData.holo) m.userData.holo = { t: "open" }; });   // 台の模型は、押すと 3D 地図がひらく
   pm.g.traverse(m => { if (m.material) m.material.depthTest = true; });   // 台の模型の札は、壁の向こうから透けて見えないように
-  const pedHint = label("押すと、3D の地図", null, 1.1, { size: .2, bg: "rgba(18,12,6,.7)" }); pedHint.material.depthTest = true; pedHint.position.set(0, 1.95, 0); pedHint.userData.holo = { t: "open" }; ped.add(pedHint); pickables.push(pedHint);
+  const pedHint = label("押すと、3D の地図", null, 1.1, { size: .2, bg: "rgba(18,12,6,.7)" }); pedHint.material.depthTest = true; pedHint.position.set(0, 1.95, 0);   /* 2026-11-22 スマホは奥の名札と重なるので出さない（下の毎こまの判定で） */ pedHint.userData.holo = { t: "open" }; ped.add(pedHint); pickables.push(pedHint);
 
   // ---------------------------------------------------------------- ②どこからでも開く 3D 地図（カメラの前に浮かぶ）
   if (!camera.parent) scene.add(camera);
@@ -153,7 +153,7 @@ export function createHolo(o) {
   function tick(dt, me, yaw, region, local, aoiPos, t) {
     pm.g.rotation.y = t * .08;   // 台の模型はゆっくり回る
     pedHint.position.y = 1.95 + Math.sin(t * 1.6) * .03;
-    { const pw = ped.getWorldPosition(new THREE.Vector3()); pedHint.visible = !holo.visible && Math.hypot(me.x - pw.x, me.z - pw.z) > 2.6; }   // 近づいたら札を消す（2026-10-14 11 人：台の上の絵を半分隠した）
+    { const pw = ped.getWorldPosition(new THREE.Vector3()); pedHint.visible = innerWidth >= 500 && !holo.visible && Math.hypot(me.x - pw.x, me.z - pw.z) > 2.6; }   // 近づいたら札を消す（2026-10-14 11 人：台の上の絵を半分隠した）
     if (holo.visible) {
       openT += dt; const k = Math.min(1, openT / .35); holo.scale.setScalar(.6 + .4 * (1 - (1 - k) ** 3));
       const q = mapPt(me.x, me.z, region, local); meG.position.set(q.x, 4.2, q.z); meG.rotation.y = yaw + Math.PI; meLab.position.set(q.x, 9, q.z);
