@@ -65,7 +65,8 @@ export function createExhibit(o) {
   const NF = FACES.length, side = FACES[NF - 1];
   const extraSlots = [{ f: side, v: -2.4 }, { f: side, v: 0 }, { f: side, v: 2.4 }];
   const used = new Set();
-  const order = ANIM.filter(a => a.where !== "room").sort((a, b) => (a.id === "koi" ? -1 : 0) - (b.id === "koi" ? -1 : 0));
+  // 2026-11-23 本人「魚でなく鳥に」：中央の踊り場の画架は鯉をやめ、燕（ツバメ・自作の 3D）を先頭に
+  const order = ANIM.filter(a => a.where !== "room").sort((a, b) => (a.id === "tsubame" ? -1 : 0) - (b.id === "tsubame" ? -1 : 0));
   for (const a of order) {
     const r = room(a.room); if (!r) continue;
     if (!used.has(a.room)) {
