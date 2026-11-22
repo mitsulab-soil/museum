@@ -1941,7 +1941,7 @@ document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => { $(b.d
 document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e => { if (e.target === s) s.hidden = true; }));
 function anySheet() { return ["map", "list", "menu"].some(id => !$(id).hidden) || !$("zoom").hidden || mode !== "walk"; }
 function closeAll() { for (const id of ["map", "list", "menu"]) $(id).hidden = true; $("zoom").hidden = true; closePanel(); }
-function fold(on) { if (!on) SP.autoFolded = false; const g = $("guide"); g.classList.toggle("folded", on); on ? (g.setAttribute("role", "button"), g.setAttribute("tabindex", "0"), g.title = "碧のことばをひらく") : (g.removeAttribute("role"), g.removeAttribute("tabindex"), g.title = ""); $("guideFold").textContent = on ? "＋" : "－"; $("guideFold").setAttribute("aria-expanded", String(!on)); }
+function fold(on) { if (!on) SP.autoFolded = false; const g = $("guide"); g.classList.toggle("folded", on); on ? (g.setAttribute("role", "button"), g.setAttribute("tabindex", "0"), g.title = "碧のことばをひらく") : (g.removeAttribute("role"), g.removeAttribute("tabindex"), g.title = ""); $("guideFold").textContent = on ? "ひらく" : "たたむ"; $("guideFold").setAttribute("aria-expanded", String(!on)); }
 $("guideFold").onclick = e => { e.stopPropagation(); fold(!$("guide").classList.contains("folded")); };
 $("guide").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && $("guide").classList.contains("folded")) { e.preventDefault(); e.stopPropagation(); fold(false); setActs(curActs()); } });
 $("guide").addEventListener("click", () => { if ($("guide").classList.contains("folded")) { fold(false); setActs(curActs()); } });

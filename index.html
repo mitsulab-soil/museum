@@ -88,7 +88,7 @@ body.hi #crCard{background:#000;border-color:#fff;opacity:1}
 #acts .btn{min-height:36px;font-size:14px;padding:0 12px;flex:none;white-space:nowrap;background:rgba(255,248,232,.1);border-color:rgba(255,240,210,.22);color:#f6efdf}
 #acts .btn.pri{background:color-mix(in srgb,var(--gold) 70%,transparent);color:#1b140c;text-shadow:none}
 #acts .ib{width:40px;padding:0;font-size:16px}
-#guideFold{position:absolute;right:2px;bottom:2px;width:40px;height:40px;border:0;background:none;color:var(--dim);font-size:16px}
+#guideFold{position:absolute;right:2px;bottom:2px;width:auto;min-width:44px;padding:0 6px;font-family:var(--mu-serif,serif);letter-spacing:.08em;height:40px;border:0;background:none;color:var(--dim);font-size:16px}
 /* たたんだ形：碧の顔だけの小さな印（押すとひらく） */
 #guide.folded{width:auto;left:10px;transform:none;padding:4px;border-radius:999px;align-items:center;gap:0;cursor:pointer;background:rgba(14,11,8,.45)}
 #guide.folded .txt,#guide.folded #guideFold{display:none}
@@ -102,7 +102,7 @@ body.hi #crCard{background:#000;border-color:#fff;opacity:1}
   #acts{flex-wrap:wrap;overflow-x:visible}   /* 2026-10-08 11 人の検証：13px で 4 つ目が画面の外に切れていた → 折り返して 15px */
   #acts .btn{min-height:34px;font-size:15px;padding:0 11px;border-radius:999px}
   #acts .ib{width:34px}
-  #guideFold{width:32px;height:32px;font-size:14px;right:1px;bottom:3px}
+  #guideFold{width:auto;height:32px;font-size:12px;right:1px;bottom:3px}
   #acts{margin-right:30px}
 }
 body.reading-aloud #guide{display:flex!important;z-index:31}
@@ -425,7 +425,7 @@ details.licd[open] summary{min-height:32px}
     <p id="say" aria-live="polite"></p>
     <div id="acts"></div>
   </div>
-  <button id="guideFold" aria-label="字幕をたたむ・ひらく" aria-expanded="true">－</button>
+  <button id="guideFold" aria-label="字幕をたたむ・ひらく" aria-expanded="true">たたむ</button>
 </section>
 
 <aside id="panel" hidden aria-label="作品の札"></aside>
