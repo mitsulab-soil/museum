@@ -2055,7 +2055,7 @@ requestAnimationFrame(tick);
 const resumeAt = store.get("smm-at", null);
 const resumeOK = !!resumeAt && (() => { space = "museum"; return walkable(resumeAt[0], resumeAt[1]) && region(resumeAt[0], resumeAt[1]).kind === "room"; })();
 function resumeGo() { intro.tok++; space = "museum"; teleport(new THREE.Vector3(resumeAt[0], 0, resumeAt[1]), null, () => { me.yaw = resumeAt[2]; freeTalk([T.idle.hello]); }); }
-warm.then(() => { warmed = true; prog(100); enterWalk(); showHint();
+warm.then(() => { warmed = true; prog(100); enterWalk(); if (innerWidth >= 700) addEventListener("pointerdown", () => setTimeout(showHint, 2500), { once: true }); else showHint();   /* 2026-11-22 PC の出だしで上の問い・札・碧と重なりうるさかった → 操作の札は一度押してから */
   requestAnimationFrame(() => requestAnimationFrame(() => { loader.hold = false; const cp = camera.position; loader.q.sort((a, b) => Math.hypot(a[0].center.x - cp.x, a[0].center.z - cp.z) - Math.hypot(b[0].center.x - cp.x, b[0].center.z - cp.z)); pump(); })); });
 // Architectural detail starts after an interactive frame; it does not join the boot gate.
 let architectureRequested=false;
