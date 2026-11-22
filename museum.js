@@ -801,8 +801,13 @@ async function hang(bay, sl) {
   img.userData = frame.userData = { bay, slot: sl }; clickables.push(img, frame);
   window.__museumArchitecture?.refineFrame(frame,ww,hh,fr);
   try { await renderer.compileAsync(grp, camera, scene); } catch (e) {}   // 2026-11-03：額の材質を先に並列で（歩いている最中に止まらない）
+  await upOne([t, lab.material.map]); if (!bay.near || sl.mesh) { grp.traverse(o => { if (o.isMesh) { o.geometry.dispose(); const i = clickables.indexOf(o); if (i >= 0) clickables.splice(i, 1); } }); t.dispose(); return; }
   bay.g.add(grp); sl.mesh = grp; sl.tex = t; sl.ph.visible = false;
 }
+// 2026-11-22：絵の画像を GPU へ送るのは一こまに一枚まで（歩けるようになった直後に、まとめて送って 0.2〜0.4 秒止まっていた）
+const UPQ = []; let upOn = false;
+function upOne(texs) { return new Promise(r => { UPQ.push([texs, r]); if (!upOn) { upOn = true; requestAnimationFrame(upRun); } }); }
+function upRun() { const [texs, r] = UPQ.shift(); for (const x of texs) if (x) { try { renderer.initTexture(x); } catch (e) {} } r(); if (UPQ.length) requestAnimationFrame(upRun); else upOn = false; }
 function unhang(bay) {
   for (const sl of bay.slots) if (sl.mesh) {
     sl.mesh.traverse(o => { if (o.isMesh) { const i = clickables.indexOf(o); if (i >= 0) clickables.splice(i, 1); o.geometry.dispose(); if (![shadowMat, poolMat, frameMat, giltMat, brassMat, glowMat].includes(o.material)) { o.material.map?.dispose?.(); o.material.dispose(); } } });
@@ -1383,12 +1388,14 @@ async function loadAoi() {
     const v = g.userData.vrm; if (!v) throw new Error("VRM ではない");
     await aoiYield();   // 11-03 本人「動いている時も 1 秒以内」：重い手順のあいだで一こま譲る
     V.VRMUtils.removeUnnecessaryVertices(g.scene); (V.VRMUtils.combineSkeletons ?? V.VRMUtils.removeUnnecessaryJoints)?.(g.scene); V.VRMUtils.rotateVRM0(v);
+    await aoiYield();   // 2026-11-22：碧の組み立てを、こまを譲りながら（歩き始めの 0.2〜0.3 秒の止まりを分ける）
     v.scene.traverse(o => { o.frustumCulled = false; });
-    aoi = new THREE.Group(); aoi.add(v.scene); vrm = v;   // 2026-11-03：館に入れるのは組み立てのあと（出るときに止まらない）
+    A.hold = true; aoi = new THREE.Group(); aoi.visible = false; aoi.add(v.scene); vrm = v;   // 2026-11-03：館に入れるのは組み立てのあと（出るときに止まらない）
     const hp = v.humanoid.getNormalizedBoneNode("hips"); if (hp) A.hip0 = hp.position.clone();
     aoiPose(0); v.update(0); v.scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(v.scene), h = box.max.y - box.min.y, sc = h > .5 ? AOI_H / h : 1;
     v.scene.scale.setScalar(sc); v.scene.position.y = -box.min.y * sc;
+    await aoiYield();
     A.head = v.humanoid.getRawBoneNode("head");
     // 表情を細かく（2026-10-09 本人「楽しそうに」）：VRoid の顔の形（目を細める・口角・眉）を直接少しずつ。表情の束（happy など）は目を閉じてしまうので使わない
     A.face = []; v.scene.traverse(o => { const d = o.morphTargetDictionary; if (d && d.Fcl_EYE_Joy != null) A.face.push({ m: o, eye: d.Fcl_EYE_Joy, mth: d.Fcl_MTH_Fun, brw: d.Fcl_BRW_Fun }); });
@@ -1398,13 +1405,16 @@ async function loadAoi() {
     v.scene.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)) { if (!m || !m.map || !m.emissive || m.userData?.aoiOverlay) continue; try { if (!m.emissiveMap) m.emissiveMap = m.map; m.emissive.setRGB(.2, .2, .2); m.needsUpdate = true; } catch (e) {} } });
     A.springs = (v.springBoneManager?.joints ? [...v.springBoneManager.joints] : []).map(j => ({ j, g: j.settings.gravityDir.clone(), p: j.settings.gravityPower }));
     // 2026-10-13：碧の体・顔・口・まばたき・揺れもの・裾は共通の部品（AoiMotion v4）。館に固有の仕草（手を差し出す・とまったら引き寄せる・手を振る・かがむ）だけを上に重ねる
+    await aoiYield();
     try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY, faceLight: .55, uprightWeight: .2 }); A.springs = null;
       { const gp = AM._gPose.bind(AM); AM._gPose = (part, sd, out) => { const r = gp(part, sd, out); if (part.g.big && part.g.type === "metaphoric" && part.g.shape !== "contrast") { out.p.y += .09; out.p.z += .12; out.p.x += (sd === "left" ? 1 : -1) * .06; out.shape = "flat"; } return r; }; } }   // 差し出す手を肘から前へ（このアプリの big の身ぶりだけ・共通部品は変えない）
     catch (e) { console.warn("AoiMotion を使えませんでした（館の動きで続けます）：", e?.message ?? e); AM = null; }
+    await aoiYield();
     aoiJump();
     window.__aoi = { vrm, aoi, A };
     // 碧の材質は、出る前に並行で組み立てる（はじめて映るこまで止まらない・2026-10-23）
-    try { A.hold = true; aoi.visible = true; await warmAoi(renderer, aoi, camera, scene); } catch (e) {} scene.remove(faceStub); scene.add(aoi); A.hold = false;   // 11-03：テクスチャ・シェーダー・影を少しずつ（faceStub が碧の顔の光の代わりに居るまま組む）
+    try { A.hold = true; aoi.visible = true; await warmAoi(renderer, aoi, camera, scene); } catch (e) {} scene.remove(faceStub); { const ms = []; aoi.traverse(o => { if (o.isMesh && o.visible) { ms.push(o); o.visible = false; } }); scene.add(aoi); A.hold = false; for (const o of ms) { o.visible = true; await aoiYield(); } }   // 2026-11-22：はじめて映るこまの重さを、一こまに一つの部分ずつに分ける（現れの薄いうちに済む）
+      // 11-03：テクスチャ・シェーダー・影を少しずつ（faceStub が碧の顔の光の代わりに居るまま組む）
   } catch (e) { console.warn("碧の姿を読み込めませんでした（声と字幕で案内します）：", e?.message ?? e); }
 }
 function safeSpot(p) {   // 通れる所へ寄せる（壁の中・壁ぎわ・台の上の目的地を、いちばん近い通れる点に）
