@@ -1413,7 +1413,7 @@ async function loadAoi() {
     aoiJump();
     window.__aoi = { vrm, aoi, A };
     // 碧の材質は、出る前に並行で組み立てる（はじめて映るこまで止まらない・2026-10-23）
-    try { A.hold = true; aoi.visible = true; await warmAoi(renderer, aoi, camera, scene); } catch (e) {} scene.remove(faceStub); { const ms = []; aoi.traverse(o => { if (o.isMesh && o.visible) { ms.push(o); o.visible = false; } }); scene.add(aoi); A.hold = false; for (const o of ms) { o.visible = true; await aoiYield(); } }   // 2026-11-22：はじめて映るこまの重さを、一こまに一つの部分ずつに分ける（現れの薄いうちに済む）
+    try { A.hold = true; aoi.visible = true; await warmAoi(renderer, aoi, camera, scene); } catch (e) {} scene.remove(faceStub); { const ms = []; aoi.traverse(o => { if (o.isMesh && o.visible) { ms.push(o); o.visible = false; } }); scene.add(aoi); for (const o of ms) { o.visible = true; await aoiYield(); } A.hold = false; A.fade = 0; }   /* 2026-11-22 部分ずつ組むあいだ、顔だけ・体だけが映っていた → 組み終わるまで隠す */   // 2026-11-22：はじめて映るこまの重さを、一こまに一つの部分ずつに分ける（現れの薄いうちに済む）
       // 11-03：テクスチャ・シェーダー・影を少しずつ（faceStub が碧の顔の光の代わりに居るまま組む）
   } catch (e) { console.warn("碧の姿を読み込めませんでした（声と字幕で案内します）：", e?.message ?? e); }
 }
@@ -1575,6 +1575,8 @@ function amTick(dt, wt, watching, lookWork) {
 }
 let aoiMats = null;
 function aoiOpacity(o) {
+  /* 2026-11-22 本人「碧が透けているのが気になる」→ 半透明の途中を見せない。現れ終わるまでは隠し、出るときは不透明で */
+  aoi.visible = o >= 1; o = 1;
   if (!aoiMats) { aoiMats = []; aoi.traverse(m => { if (m.isMesh) for (const mt of [].concat(m.material)) { aoiMats.push([mt, mt.transparent, mt.depthWrite]); } }); }
   // 2026-10-23：現れる途中も奥行きを書く（体の奥の面が透けて上半身だけ濃く見えた）。材質の組み直しは、透けの切りかえのときだけ
   for (const [mt, tr, dw] of aoiMats) { const t = o < 1 ? true : tr; if (mt.transparent !== t) { mt.transparent = t; mt.needsUpdate = true; } mt.opacity = o; mt.depthWrite = o < 1 ? (o > .02 || dw) : dw; }
@@ -1980,9 +1982,9 @@ function showHint() {
 let woke = false;
 const OTO_EARLY = new URLSearchParams(location.search).get("mode") === "oto";
 // はじめの合図（2026-10-14 11 人：はじめの画面に「押すとはじまる」の合図がなかった）
-const startCue = (() => { const d = document.createElement("div"); d.id = "startCue"; d.setAttribute("aria-hidden", "true"); d.textContent = "画面を押すと、碧の案内がはじまります（音が出ます）"; const g = document.querySelector("#guide .txt"); g ? g.insertBefore(d, g.firstChild) : document.body.appendChild(d); return d; })();
+const startCue = (() => { const d = document.createElement("div"); d.id = "startCue"; d.setAttribute("aria-hidden", "true"); d.innerHTML = "<span style=\"display:block;font-size:1.05em;margin-bottom:4px\">ここを出たら、空か足もとに、絵と同じ色を一つ探してみてください。</span>画面を押すと、碧の案内がはじまります（音が出ます）";   /* 2026-11-22 問いを押す前から見せる */ const g = document.querySelector("#guide .txt"); g ? g.insertBefore(d, g.firstChild) : document.body.appendChild(d); return d; })();
 function wake() {   // はじめて押したとき：音の仕組みを立て、碧がひとこと
-  if (woke || mode !== "walk") return; woke = true; startCue.remove();
+  if (woke || mode !== "walk") return; woke = true; startCue.remove(); document.body.classList.add("woke");
   AUD.init(); AUD.zone(ambOf(zone.key)); $("guide").hidden = false; const aoiStanding = aoi?.visible && A.fade >= 1; if (!aoiStanding) aoiJump();   // もう立っていれば、跳ばさない（2026-10-14）
   // 2026-10-07 本人「起動時に碧が登場するのは広間の中央に」：円堂のまん中に、見る人のほうを向いて現れる
   // 2026-10-14 11 人：はじめの画面ですでに立っている碧を、押した直後に網目で出なおさせていた（しゃがんだ形に見えた）→ もう立っていれば置きなおさない

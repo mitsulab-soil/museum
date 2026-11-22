@@ -425,6 +425,8 @@ details.licd[open] summary{min-height:32px}
     <p id="say" aria-live="polite"></p>
     <div id="acts"></div>
   </div>
+  
+  <style>#guideFold{top:auto!important;bottom:calc(100% + 6px)!important;right:4px!important;height:30px!important;background:rgba(14,11,8,.78)!important;border:1px solid rgba(201,164,92,.45)!important;border-radius:3px!important;color:#f6efdf!important;font-size:12px!important}</style>   <!-- 2026-11-22 「たたむ」が碧の裾に重なって見えない → 字幕の枠の右上の外に、地を付けて -->
   <button id="guideFold" aria-label="字幕をたたむ・ひらく" aria-expanded="true">たたむ</button>
 </section>
 
@@ -517,5 +519,7 @@ details.licd[open] summary{min-height:32px}
 <script src="data/anim.js" onerror="window.ANIM=[]"></script>
 <script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261121-p2';document.body.appendChild(s);}</script>
 <noscript><p style="padding:20px">この博物館は JavaScript で動きます。</p></noscript>
+<p id="askLine">ここを出たら、空か足もとに、絵と同じ色を一つ探してみてください。<small>押すと碧の案内がはじまります（音が出ます）</small></p>
+  <style>#askLine{position:fixed;left:50%;transform:translateX(-50%);top:calc(max(10px,env(safe-area-inset-top)) + 196px);width:min(560px,calc(100vw - 40px));padding:8px 12px;background:rgba(14,11,8,.62);border:1px solid rgba(201,164,92,.35);border-radius:3px;box-sizing:border-box;margin:0;text-align:center;z-index:6;pointer-events:none;font:15px/1.8 var(--mu-serif,serif);letter-spacing:.06em;color:#f6efdf;text-shadow:0 0 2px #03060f,0 0 6px rgba(3,6,15,.95),0 1px 12px rgba(3,6,15,.85)}#askLine small{display:block;font-size:12px;opacity:.85;margin-top:4px}body.woke #askLine{display:none}@media (max-width:440px){#askLine{top:calc(max(10px,env(safe-area-inset-top)) + 160px);font-size:14px}}</style>
 </body>
 </html>
