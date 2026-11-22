@@ -1443,7 +1443,7 @@ function followSpot() {
     }
   }
   // ふだんは見る人の右前（となりを歩く）。スマホの縦長では近め・まん中寄り
-  const narrow = innerWidth / innerHeight < .8, lib_ = space === "library", F = lib_ ? (narrow ? 1.6 : 1.0) : narrow ? 3.9 : 3.4, X = lib_ ? (narrow ? 1.1 : 1.8) : narrow ? .62 : 1.7;   /* 2026-11-22 PC で押したあと操作の帯と「たたむ」が碧の腰に重なった → 右へ（1.25→1.7） */   /* 2026-11-22 スマホで押して進むと碧の真後ろに寄り、髪が画面の右をふさいだ → 進む道からもう少し右へ */   /* 2026-11-22 PC で碧の足もとが切れ気味 → 少し奥に */   /* 2026-11-22 スマホで右端に寄っていた */
+  const narrow = innerWidth / innerHeight < .8, lib_ = space === "library", F = lib_ ? (narrow ? 1.6 : 1.0) : narrow ? 3.9 : 3.4, X = lib_ ? (narrow ? 1.1 : 1.8) : narrow ? .78 : 1.7;   /* 2026-11-23 スマホで碧が中央の台に重なり地図の札が隠れた → 少し右へ（全身は画面に入る） */   /* 2026-11-22 PC で押したあと操作の帯と「たたむ」が碧の腰に重なった → 右へ（1.25→1.7） */   /* 2026-11-22 スマホで押して進むと碧の真後ろに寄り、髪が画面の右をふさいだ → 進む道からもう少し右へ */   /* 2026-11-22 PC で碧の足もとが切れ気味 → 少し奥に */   /* 2026-11-22 スマホで右端に寄っていた */
   const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw), rx = -fz, rz = fx;
   let x = me.pos.x + fx * F + rx * X, z = me.pos.z + fz * F + rz * X;
   for (let k = 0; k < 6 && !walkable(x, z, 1.3); k++) { x = (x + me.pos.x) / 2; z = (z + me.pos.z) / 2; }
@@ -1943,7 +1943,7 @@ document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => { $(b.d
 document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", e => { if (e.target === s) s.hidden = true; }));
 function anySheet() { return ["map", "list", "menu"].some(id => !$(id).hidden) || !$("zoom").hidden || mode !== "walk"; }
 function closeAll() { for (const id of ["map", "list", "menu"]) $(id).hidden = true; $("zoom").hidden = true; closePanel(); }
-function fold(on) { if (!on) SP.autoFolded = false; const g = $("guide"); g.classList.toggle("folded", on); on ? (g.setAttribute("role", "button"), g.setAttribute("tabindex", "0"), g.title = "碧のことばをひらく") : (g.removeAttribute("role"), g.removeAttribute("tabindex"), g.title = ""); $("guideFold").textContent = on ? "ひらく" : "たたむ"; $("guideFold").setAttribute("aria-expanded", String(!on)); }
+function fold(on) { if (!on) SP.autoFolded = false; const g = $("guide"); g.classList.toggle("folded", on); on ? (g.setAttribute("role", "button"), g.setAttribute("tabindex", "0"), g.title = "碧のことばをひらく") : (g.removeAttribute("role"), g.removeAttribute("tabindex"), g.title = ""); $("guideFold").textContent = on ? "字幕をひらく" : "字幕をたたむ";   /* 2026-11-23 「たたむ」だけでは何をたたむか分かりにくい */ $("guideFold").setAttribute("aria-expanded", String(!on)); }
 $("guideFold").onclick = e => { e.stopPropagation(); fold(!$("guide").classList.contains("folded")); };
 $("guide").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && $("guide").classList.contains("folded")) { e.preventDefault(); e.stopPropagation(); fold(false); setActs(curActs()); } });
 $("guide").addEventListener("click", () => { if ($("guide").classList.contains("folded")) { fold(false); setActs(curActs()); } });
