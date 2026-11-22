@@ -1407,7 +1407,7 @@ async function loadAoi() {
     // 2026-10-13：碧の体・顔・口・まばたき・揺れもの・裾は共通の部品（AoiMotion v4）。館に固有の仕草（手を差し出す・とまったら引き寄せる・手を振る・かがむ）だけを上に重ねる
     await aoiYield();
     try { AM = new AoiMotion(v, { root: aoi, reducedMotion: RM, wind: .35, groundAt: groundY, faceLight: .55, uprightWeight: .2 }); A.springs = null;
-      { const gp = AM._gPose.bind(AM); AM._gPose = (part, sd, out) => { const r = gp(part, sd, out); if (part.g.big && part.g.type === "metaphoric" && part.g.shape !== "contrast") { out.p.y += .09; out.p.z += .12; out.p.x += (sd === "left" ? 1 : -1) * .06; out.shape = "flat"; } return r; }; } }   // 差し出す手を肘から前へ（このアプリの big の身ぶりだけ・共通部品は変えない）
+      { const gp = AM._gPose.bind(AM); AM._gPose = (part, sd, out) => { const r = gp(part, sd, out); if (part.g.type === "deictic" && part.g.target) { const sg = sd === "left" ? 1 : -1, sh = AM.armRest[sd].sh; out.p.set(sg * .14, sh.y - .32, sh.z + .22); out.f.set(sg * .25, .05, 1); out.n.set(-sg * .2, 1, 0); out.shape = "open"; } return r;   /* 2026-11-22 指さし・前へ差し出す身ぶりをやめ、腰のあたりで手を軽くひらく案内に */ }; } }   // 差し出す手を肘から前へ（このアプリの big の身ぶりだけ・共通部品は変えない）
     catch (e) { console.warn("AoiMotion を使えませんでした（館の動きで続けます）：", e?.message ?? e); AM = null; }
     await aoiYield();
     aoiJump();
@@ -1563,8 +1563,8 @@ function amTick(dt, wt, watching, lookWork) {
   // 館に固有の仕草（姿勢の上に重ねる）
   const k = AM.k || 0, of = live ? clamp(A.offer || 0, 0, 1) * (1 - k) : 0, ofE = of * of * (3 - 2 * of);
   const ld = live ? clamp(A.land || 0, 0, 1) : 0, ldE = ld * ld * (3 - 2 * ld), cr = Math.sin(t * 2 * Math.PI / 3.4) * .03 * ldE;
-  amPose("leftUpperArm", -.2 + .05 * ldE, -.95 - .1 * ldE, -.6 + .38 * ldE + cr, ofE);
-  amPose("leftLowerArm", 0, -.45 - .85 * ldE, 0, ofE);
+  amPose("leftUpperArm", -.12 + .05 * ldE, -.35 - .1 * ldE, -1.12 + .12 * ldE + cr, ofE);   /* 2026-11-22 腕を横へ伸ばすと指さしに見えた → ひじは体の横、手は腰の前で軽くひらく */
+  amPose("leftLowerArm", 0, -1.0 - .35 * ldE, 0, ofE);
   amPose("leftHand", -.2 + .1 * ldE, 0, .02, ofE);
   const wv = live ? clamp(A.wave || 0, 0, 1) : 0, wvE = wv * wv * (3 - 2 * wv), wvO = Math.sin(t * 2 * Math.PI * 1.6);
   amPose("rightUpperArm", -.1, .45, -.5, wvE); amPose("rightLowerArm", 0, .6 + .28 * wvO, 0, wvE); amPose("rightHand", .05, 0, .15 * wvO, wvE);
@@ -1619,7 +1619,7 @@ function aoiPose(dt, sp = 0, toCamLocal = 0, aim = 0) {
   const lUA = [.26 * s1 * k - .05 * (1 - k), 0, -1.3 + .04 * br * (1 - k)], lLA = [0, -(.28 + .14 * k + .12 * Math.max(0, -s1) * k), 0];
   // とまったら、手をそっと引き寄せる（ひじを曲げて胸の前へ）。ゆっくり上下に揺らす
   const cr = Math.sin(t * 2 * Math.PI / 3.4) * .03 * ldE;
-  const oUA = [-.2 + .05 * ldE, -.95 - .1 * ldE, -.6 + .38 * ldE + cr], oLA = [0, -.45 - .85 * ldE, 0];
+  const oUA = [-.12 + .05 * ldE, -.35 - .1 * ldE, -1.12 + .12 * ldE + cr], oLA = [0, -1.0 - .35 * ldE, 0];   /* 2026-11-22 腰の前の穏やかな手に */
   S("leftUpperArm", ...lUA.map((v, i) => v + (oUA[i] - v) * ofE));
   S("leftLowerArm", ...lLA.map((v, i) => v + (oLA[i] - v) * ofE));
   S("leftHand", .05 - .25 * ofE + .1 * ldE * ofE, 0, .12 - .1 * ofE);
