@@ -624,7 +624,7 @@ function crTick(dt) {
   if (W >= 700 && _cv.z < 1 && Math.abs(_cv.x) < 1.05 && Math.abs(_cv.y) < 1.05) {   // 2026-11-22：スマホは絵に重ねず、いつも字幕のすぐ上に
     const px = (_cv.x + 1) / 2 * W, py = (1 - _cv.y) / 2 * H;
     x = px + 30 + w > W - 10 ? px - 30 - w : px + 30; y = py - h - 22;
-  } else { x = 10; y = gTop - h - 4; }   // 画面の外：字幕のすぐ上の左（床のあたり）。説明している絵には重ねない
+  } else { x = W < 700 ? W - w - 10 : 10; y = gTop - h - 4; }   // 2026-11-22：スマホは碧（左に立つ）と重ならない右へ   // 画面の外：字幕のすぐ上の左（床のあたり）。説明している絵には重ねない
   x = clamp(x, 10, Math.max(10, W - w - 10)); y = clamp(y, top, Math.max(top, gTop - h));
   if (crc.x < -900) { crc.x = x; crc.y = y; } else { const k = RM ? 1 : 1 - Math.exp(-dt * 4); crc.x += (x - crc.x) * k; crc.y += (y - crc.y) * k; }
   el.style.transform = `translate3d(${crc.x.toFixed(1)}px,${crc.y.toFixed(1)}px,0)`;
@@ -1508,7 +1508,7 @@ function aoiTick(dt) {
   }
   if (A.gaze) { if (lookWork) A.gaze.position.set(A.look.x, 1.9 + groundY(A.look.x, A.look.z), A.look.z); else if (watching) A.gaze.position.copy(wt.pos); else A.gaze.position.copy(camera.position); }
   A.talkT += dt;
-  if (AM) { amTick(dt, wt, watching, lookWork); if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); document.body.classList.toggle("aoifade", A.fade < 1); } return; }
+  if (AM) { amTick(dt, wt, watching, lookWork); if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .4); aoiOpacity(A.fade); document.body.classList.toggle("aoifade", A.fade < 1); } return; }
   if (A.springs && !RM) { const t = performance.now() / 1000; for (const s of A.springs) { s.j.settings.gravityDir.set(s.g.x + .22 * Math.sin(t * .63 + s.g.y), s.g.y, s.g.z + .14 * Math.sin(t * .41)).normalize(); s.j.settings.gravityPower = Math.max(s.p, .05); } }
   aoiPose(dt, A.sp, wrapA(toCam - A.yaw), lookWork ? wrapA(Math.atan2(A.look.x - A.pos.x, A.look.z - A.pos.z) - A.yaw) : 0);
   // 口：声の大きさに合わせる（声を切っているときは、字幕のあいだ小さく）
@@ -1524,7 +1524,7 @@ function aoiTick(dt) {
   vrm.update(dt);
   // 2026-10-07 本人「碧が登場するときにワンピースが不自然に大きく揺れる」→ 現れてしばらくは、揺れものをいまの姿勢で止めておく（そのあいだに姿がゆっくり出る）
   if (A.calm > 0) { A.calm -= dt; const sbm = vrm.springBoneManager; sbm?.setInitState?.(); sbm?.reset?.(); }
-  if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .9); aoiOpacity(A.fade); document.body.classList.toggle("aoifade", A.fade < 1); }
+  if (A.fade < 1) { A.fade = Math.min(1, (A.fade || 0) + dt / .4); aoiOpacity(A.fade); document.body.classList.toggle("aoifade", A.fade < 1); }
 }
 // 2026-10-13：碧の体は共通の部品（AoiMotion v4）。館に固有の仕草だけを、部品が組んだ姿勢の上に重ねる。
 //   見る先＝話題の作品／抜け出た生きもの／見る人。指す＝作品の話の 2 文目。表情＝生きものが出ているあいだは笑み、手にとまった瞬間は少し大きく。
@@ -1680,6 +1680,7 @@ async function walkToKei(j, tk) {
 async function runTour(i, j0 = -1) {
   hush(); closePanel();
   const tk = ++tour.tok; Object.assign(tour, { on: true, room: i, j: j0, susp: false });
+  { const h = $("hint"); h.classList.remove("on"); h.hidden = true; }   // 2026-11-22：案内が始まったら操作のヒントは消す（景の題に重ねない）
   const r = rooms[i], TR = T.rooms[i];
   curActs = tourActs; setActs(tourActs()); $("guide").hidden = false; if ($("guide").classList.contains("folded")) fold(false);
   const reg = region(me.pos.x, me.pos.z);
