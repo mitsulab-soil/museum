@@ -1443,7 +1443,7 @@ function followSpot() {
     }
   }
   // ふだんは見る人の右前（となりを歩く）。スマホの縦長では近め・まん中寄り
-  const narrow = innerWidth / innerHeight < .8, lib_ = space === "library", F = lib_ ? (narrow ? 1.6 : 1.0) : narrow ? 2.9 : 2.5, X = lib_ ? (narrow ? 1.1 : 1.8) : narrow ? .55 : 1.1;
+  const narrow = innerWidth / innerHeight < .8, lib_ = space === "library", F = lib_ ? (narrow ? 1.6 : 1.0) : narrow ? 3.2 : 2.5, X = lib_ ? (narrow ? 1.1 : 1.8) : narrow ? .4 : 1.1;   /* 2026-11-22 スマホで右端に寄っていた */
   const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw), rx = -fz, rz = fx;
   let x = me.pos.x + fx * F + rx * X, z = me.pos.z + fz * F + rz * X;
   for (let k = 0; k < 6 && !walkable(x, z, 1.3); k++) { x = (x + me.pos.x) / 2; z = (z + me.pos.z) / 2; }
