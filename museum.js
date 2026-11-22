@@ -621,7 +621,7 @@ function crTick(dt) {
   const top = ($("top").hidden ? 10 : Math.max($("where").getBoundingClientRect().bottom, $("mini").getBoundingClientRect().bottom) + 8);
   const g = $("guide"), gTop = g.hidden ? H - 10 : g.getBoundingClientRect().top - 8;
   let x, y;
-  if (_cv.z < 1 && Math.abs(_cv.x) < 1.05 && Math.abs(_cv.y) < 1.05) {
+  if (W >= 700 && _cv.z < 1 && Math.abs(_cv.x) < 1.05 && Math.abs(_cv.y) < 1.05) {   // 2026-11-22：スマホは絵に重ねず、いつも字幕のすぐ上に
     const px = (_cv.x + 1) / 2 * W, py = (1 - _cv.y) / 2 * H;
     x = px + 30 + w > W - 10 ? px - 30 - w : px + 30; y = py - h - 22;
   } else { x = 10; y = gTop - h - 4; }   // 画面の外：字幕のすぐ上の左（床のあたり）。説明している絵には重ねない
@@ -1666,13 +1666,14 @@ async function walkToKei(j, tk) {
   const narrow = innerWidth / innerHeight < .8;
   A.goal = new THREE.Vector3(narrow ? -.95 : -2.95, 0, narrow ? 1.35 : 1.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), bay.facing).add(bay.center);
   A.look = new THREE.Vector3(rep?.x || 0, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), bay.facing).add(bay.center); A.point = 0;
-  const stand = new THREE.Vector3(narrow ? -.2 : -.8, 0, 4.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), bay.facing).add(bay.center);
+  const stand = new THREE.Vector3(narrow ? -.2 : -.8, 0, narrow ? 5.6 : 4.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), bay.facing).add(bay.center);
   const lookAt = new THREE.Vector3(narrow ? -.2 : -.8, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), bay.facing).add(bay.center);
   const far = Math.hypot(me.pos.x - stand.x, me.pos.z - stand.z) > 2;
   const walking = goP(stand, lookAt);
   if (far && j > 0) { const ln = T.move[(j + tour.room) % T.move.length]; speakLine(ln); }
   await walking;
   if (tk !== tour.tok) return false;
+  if (!me.userLook) me.pitch = narrow ? .13 : .09;   // 2026-11-22：景の題（第◯景）が上で切れないよう少し見上げる
   if (SP.resolve && T.move.includes(SP.cur)) await new Promise(res => { const t = setInterval(() => { if (!SP.resolve) { clearInterval(t); res(); } }, 80); });
   return tk === tour.tok;
 }
