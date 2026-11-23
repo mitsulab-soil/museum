@@ -118,7 +118,7 @@ function walkable(x, z, wallGap = 1.6) {
 // ---------------------------------------------------------------- 部屋ごとの空気（光・霧・窓の外・粒・音）
 //   win：窓の外（1 雨・2 風の雲・3 雪・4 森・5 畑の昼・6 月夜・7 夜明け・8 夕の土）、part：粒（ほこり・葉・雪・ほたる・花粉・星・金の塵）
 const ATMO = {
-  lobby:   { hs: 0xffe9cc, hg: 0x4a3c2c, hi: .92, kc: 0xffe6c0, ki: .9, exp: 1.0, fog: 0x2a2219, part: "dust", fn: 22, ff: 95 },
+  lobby:   { hs: 0xffe4c2, hg: 0x3a2e22, hi: .74, kc: 0xffe6c0, ki: .9, exp: 1.0, fog: 0x2a2219, part: "dust", fn: 22, ff: 95 },
   outside: { hs: 0xc8d6f0, hg: 0x5a4a38, hi: 1.05, kc: 0xffd2a0, ki: 1.25, exp: 1.0, fog: 0xd9b48e, part: "none", fn: 60, ff: 250 },
   library: { hs: 0xffe2b8, hg: 0x3a2414, hi: .75, kc: 0xffd6a0, ki: .45, exp: 1.02, fog: 0x1a120a, part: "dust", fn: 12, ff: 40 },
   tsuchi:  { wall: 0x7a4a30, ceil: 0x3a2516, run: ["#5e2a1c", "#c9a45c"], hs: 0xffdcae, hg: 0x5a3a22, hi: 1.0, kc: 0xffc58a, ki: .85, exp: 1.0, fog: 0x3a2414, lay: 0xffd7a0, layI: .95, win: 8, part: "dust", shaft: 0xffc890 },
@@ -2059,7 +2059,7 @@ warm.then(() => { warmed = true; prog(100); enterWalk(); if (innerWidth >= 700) 
   requestAnimationFrame(() => requestAnimationFrame(() => { loader.hold = false; const cp = camera.position; loader.q.sort((a, b) => Math.hypot(a[0].center.x - cp.x, a[0].center.z - cp.z) - Math.hypot(b[0].center.x - cp.x, b[0].center.z - cp.z)); pump(); })); });
 // Architectural detail starts after an interactive frame; it does not join the boot gate.
 let architectureRequested=false;
-function requestArchitecture(){if(architectureRequested)return;architectureRequested=true;setTimeout(()=>{(window.requestIdleCallback||((f)=>setTimeout(f,24)))(()=>import('./museum-architecture.js?v=20261123-1').then(m=>m.install({scene,world,mats:{woodMat,darkWood,frameMat,brassMat,giltMat,stoneMat,marbleMat,lobbyFloorMat,parquet,T_PLASTER,T_STONE,T_WOOD},floors,bays,E,STEPS,PLAZA_Y})).catch(e=>console.warn('館の細部を読めませんでした',e)),{timeout:500});},1200);}
+function requestArchitecture(){if(architectureRequested)return;architectureRequested=true;setTimeout(()=>{(window.requestIdleCallback||((f)=>setTimeout(f,24)))(()=>import('./museum-architecture.js?v=20261123-2').then(m=>m.install({scene,world,mats:{woodMat,darkWood,frameMat,brassMat,giltMat,stoneMat,marbleMat,lobbyFloorMat,parquet,T_PLASTER,T_STONE,T_WOOD},floors,bays,E,STEPS,PLAZA_Y})).catch(e=>console.warn('館の細部を読めませんでした',e)),{timeout:500});},1200);}
 warm.then(()=>requestAnimationFrame(()=>requestAnimationFrame(requestArchitecture)));
 
 
