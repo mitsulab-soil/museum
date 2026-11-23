@@ -28,4 +28,27 @@ export async function install(ctx){if(stats.status!=='waiting')return;stats.stat
  // Thin glass rim of the central digital-map display. No full-scene transmission pass.
  const glass=new T.MeshPhysicalMaterial({color:0xd9ece8,metalness:0,roughness:.12,transparent:true,opacity:.10,depthWrite:false,side:T.DoubleSide,ior:1.5,reflectivity:.45,clearcoat:1,clearcoatRoughness:.12});const rim=new T.Mesh(new T.CylinderGeometry(.79,.79,.20,48,1,true),glass);rim.name='地図展示台の薄いガラス縁';rim.position.set(0,1.02,-1.9);scene.add(rim);stats.glass++;
  const ped=scene.children.find(g=>g.isGroup&&g.position.z===-1.9&&g.children.some(o=>o.geometry?.type==='CylinderGeometry'));if(ped){const col=ped.children.find(o=>o.geometry?.parameters?.height===.86);if(col){const old=col.geometry;col.geometry=new T.LatheGeometry([new T.Vector2(.72,-.43),new T.Vector2(.72,-.38),new T.Vector2(.67,-.34),new T.Vector2(.61,.32),new T.Vector2(.65,.36),new T.Vector2(.65,.43)],32);old.dispose();col.material.roughness=.66;}}
+ await idle();await aged(mats);
  stats.finishedAt=performance.now();stats.status='ready';}
+// 2026-11-23 本人「歴史がつみ重なった重厚感」：明治〜昭和初期の石造の館（表慶館の円堂・石の壁・寄木の床）を手本に、
+// 手続きで描いた石・漆喰・床の絵を Poly Haven の CC0 写真の質感（Marble 01＝石灰岩の切石・Plastered Wall 04・Herringbone Parquet・Dark Paneled Wood）に差しかえる。
+// 起動を待たせないよう、建物を出したあとに絵（image）だけを入れかえる（材質の組み直しは起きない）。
+function img(u){return new Promise(r=>{const i=new Image();i.decoding='async';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u;});}
+async function swap(t,u){if(!t)return;const i=await img(u);if(!i)return;t.image=i;t.needsUpdate=true;stats.swapped=(stats.swapped||0)+1;}
+async function aged(m){const P='tex/ph/';
+ // 石の壁：切石の目地と、手と年月でついた汚れ・艶むら
+ await swap(m.T_STONE,P+'marb_c.webp');await swap(m.stoneMat?.normalMap,P+'marb_n.webp');if(m.stoneMat){m.stoneMat.color.set(0xd6c6aa);m.stoneMat.normalScale.set(.9,.9);m.stoneMat.roughness=.78;}
+ await idle();
+ // 部屋の漆喰：時を経て少しくすんだ鏝むら
+ await swap(m.T_PLASTER,P+'plas_c.webp');
+ await idle();
+ // 寄木（ヘリンボーン）の床。歩く筋に擦れ・艶
+ if(m.parquet){await swap(m.parquet.map,P+'herr_c.webp');await swap(m.parquet.normalMap,P+'herr_n.webp');await swap(m.parquet.roughnessMap,P+'herr_r.webp');}
+ await idle();
+ // 腰板・梁の木：鏡板の組み（重い色の古材）
+ await swap(m.T_WOOD,P+'pnl_c.webp');if(m.woodMat)m.woodMat.color.set(0xe6d2bd);
+ // 大理石の柱と市松の床：真っ白でなく、年月で黄みを帯びた石に
+ await swap(m.marbleMat?.map,P+'marb_c.webp');if(m.marbleMat){m.marbleMat.color.set(0xf2e6d0);m.marbleMat.roughness=.42;}
+ if(m.lobbyFloorMat){m.lobbyFloorMat.color.set(0xcfc2aa);m.lobbyFloorMat.roughness=.5;m.lobbyFloorMat.normalScale?.set(.5,.5);}
+}
+

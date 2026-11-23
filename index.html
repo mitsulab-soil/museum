@@ -377,7 +377,7 @@ body.oto #hint,body.oto #zones{display:none!important}
 
 <!-- Start the same 3D module graph and Aoi asset while the data scripts arrive.
      modulepreload does not execute museum.js before window.MUSEUM/VOICE/BOOKS. -->
-<link rel="modulepreload" href="museum.js?v=20261121-p2" fetchpriority="high">
+<link rel="modulepreload" href="museum.js?v=20261123-old" fetchpriority="high">
 <link rel="modulepreload" href="vendor/three/examples/jsm/loaders/GLTFLoader.js">
 <link rel="modulepreload" href="vendor/three/examples/jsm/libs/meshopt_decoder.module.js">
 <link rel="modulepreload" href="vendor/three-vrm/three-vrm.module.min.js">
@@ -523,7 +523,7 @@ details.licd[open] summary{min-height:32px}
 <script>/* 碧の声の表（大きい）は、館が組み上がってから読む（2026-11-03 起動 2 秒） */addEventListener('load',function(){setTimeout(function(){var v=document.createElement('script');v.src='data/voice.js';v.onload=function(){window.__voiceReady&&__voiceReady()};v.onerror=function(){window.VOICE=window.VOICE||{};window.__voiceReady&&__voiceReady()};document.body.appendChild(v)},300)});</script>
 <script src="data/books.js" onerror="window.BOOKS=[]"></script>
 <script src="data/anim.js" onerror="window.ANIM=[]"></script>
-<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261121-p2';document.body.appendChild(s);}</script>
+<script>if(location.protocol!=='file:'){var s=document.createElement('script');s.type='module';s.src='museum.js?v=20261123-old';document.body.appendChild(s);}</script>
 <noscript><p style="padding:20px">この博物館は JavaScript で動きます。</p></noscript>
 <p id="askLine">ここを出たら、空か足もとに、絵と同じ色を一つ探してみてください。<small>押すと碧の案内がはじまります（音が出ます）</small></p>
   <style>#askLine{position:fixed;left:50%;transform:translateX(-50%);top:calc(max(10px,env(safe-area-inset-top)) + 196px);width:min(560px,calc(100vw - 40px));padding:8px 12px;background:rgba(14,11,8,.86);border:1px solid rgba(201,164,92,.45);border-radius:3px;box-sizing:border-box;margin:0;text-align:center;z-index:6;pointer-events:none;font:15px/1.8 var(--mu-serif,serif);letter-spacing:.06em;color:#f6efdf;text-shadow:0 0 2px #03060f,0 0 6px rgba(3,6,15,.95),0 1px 12px rgba(3,6,15,.85)}#askLine small{display:block;font-size:12px;opacity:.85;margin-top:4px}body.woke #askLine{display:none}@media (max-width:440px){body:not(.woke) #hint{display:none!important}}@media (max-width:440px){#askLine{top:calc(max(10px,env(safe-area-inset-top)) + 160px);font-size:14px}}</style>
