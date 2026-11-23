@@ -46,13 +46,13 @@ function canvas(n,draw){const c=document.createElement('canvas');c.width=c.heigh
 function patina({scene,world,mats,ped}){let seed=97;const r=()=>(seed=(seed*16807)%2147483647)/2147483647;
  let lob=null;world.traverse(o=>{if(!lob&&o.isMesh&&o.material===mats.lobbyFloorMat)lob=o;});
  if(lob){lob.geometry.computeBoundingBox();const b=lob.geometry.boundingBox.clone().applyMatrix4(lob.matrixWorld),sz=new T.Vector3(),c=new T.Vector3();b.getSize(sz);b.getCenter(c);const R=Math.max(sz.x,sz.z);
-  const tex=canvas(512,(g,n)=>{const h=n/2;let gr=g.createRadialGradient(h,h,n*.18,h,h,h);gr.addColorStop(0,'rgba(40,28,14,.04)');gr.addColorStop(.55,'rgba(40,28,14,.16)');gr.addColorStop(1,'rgba(30,20,10,.5)');g.fillStyle=gr;g.fillRect(0,0,n,n);
-   for(let i=0;i<260;i++){const x=r()*n,y=r()*n,rr=6+r()*48,a=.05+r()*.1;const q=g.createRadialGradient(x,y,0,x,y,rr);q.addColorStop(0,`rgba(${r()<.5?'52,36,18':'20,14,8'},${a})`);q.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=q;g.fillRect(x-rr,y-rr,rr*2,rr*2);}
+  const tex=canvas(512,(g,n)=>{const h=n/2;let gr=g.createRadialGradient(h,h,n*.18,h,h,h);gr.addColorStop(0,'rgba(40,28,14,.06)');gr.addColorStop(.5,'rgba(40,28,14,.24)');gr.addColorStop(1,'rgba(30,20,10,.62)');g.fillStyle=gr;g.fillRect(0,0,n,n);
+   for(let i=0;i<260;i++){const x=r()*n,y=r()*n,rr=6+r()*48,a=.08+r()*.14;const q=g.createRadialGradient(x,y,0,x,y,rr);q.addColorStop(0,`rgba(${r()<.5?'52,36,18':'20,14,8'},${a})`);q.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=q;g.fillRect(x-rr,y-rr,rr*2,rr*2);}
    for(let i=0;i<90;i++){g.strokeStyle=`rgba(28,20,10,${.04+r()*.05})`;g.lineWidth=.6+r();g.beginPath();const x=r()*n,y=r()*n;g.moveTo(x,y);g.lineTo(x+(r()-.5)*90,y+(r()-.5)*90);g.stroke();}});
   const ov=new T.Mesh(new T.PlaneGeometry(R,R),new T.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));ov.rotation.x=-Math.PI/2;ov.position.set(c.x,b.max.y+.006,c.z);ov.renderOrder=1;ov.name='床の汚れと擦れ';world.add(ov);
   // 高い窓から差す斜めの光（ほこりの光）。三本、床へ斜めに落ちる
   const sh=canvas(128,(g,n)=>{const gr=g.createLinearGradient(0,0,n,0);gr.addColorStop(0,'rgba(255,230,180,0)');gr.addColorStop(.5,'rgba(255,230,180,1)');gr.addColorStop(1,'rgba(255,230,180,0)');g.fillStyle=gr;g.fillRect(0,0,n,n);const v=g.createLinearGradient(0,0,0,n);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(.25,'rgba(0,0,0,1)');v.addColorStop(1,'rgba(0,0,0,.2)');g.globalCompositeOperation='destination-in';g.fillStyle=v;g.fillRect(0,0,n,n);});
-  const sm=new T.MeshBasicMaterial({map:sh,transparent:true,opacity:.24,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide,toneMapped:false,fog:false});
+  const sm=new T.MeshBasicMaterial({map:sh,transparent:true,opacity:.42,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide,toneMapped:false,fog:false});
   for(const [x,z,ry,len] of [[-3.2,-4.5,.35,10],[3.6,-3.8,-.4,11],[-.6,-6.2,.1,12]]){const q=new T.Mesh(new T.PlaneGeometry(1.6,len),sm);q.position.set(c.x+x,b.max.y+len*.42,c.z+z);q.rotation.set(0,ry,0);q.rotateX(-.5);q.name='斜光';world.add(q);}
  }
  // 台座：新品の白でなく、手ずれと年月で黄ばんだ石
@@ -72,6 +72,12 @@ async function aged(m){const P='tex/ph/';
  await swap(m.T_WOOD,P+'pnl_c.webp');if(m.woodMat)m.woodMat.color.set(0xe6d2bd);
  // 大理石の柱と市松の床：真っ白でなく、年月で黄みを帯びた石に
  if(m.marbleMat){const t=await tl(P+'marb_c.webp',true);if(t){t.repeat.set(.7,1.6);m.marbleMat.map=t;}const n=await tl(P+'marb_n.webp');if(n&&m.marbleMat.normalMap){n.repeat.set(.7,1.6);m.marbleMat.normalMap=n;}m.marbleMat.color.set(0xf2e6d0);m.marbleMat.roughness=.42;}
- if(m.lobbyFloorMat){m.lobbyFloorMat.color.set(0xcfc2aa);m.lobbyFloorMat.roughness=.5;m.lobbyFloorMat.normalScale?.set(.5,.5);}
+ // 3 周目：広間の床を、大柄な白黒の市松から、切石の写真で組んだ落ち着いた石の床に（小さめの目地・石ごとに色と擦れが違う。明るい石灰岩と、くすんだ灰褐色の石を交互に）
+ if(m.lobbyFloorMat){const im=await img(P+'marb_c.webp');if(im){const N=1024,K=4,S=N/K,c=document.createElement('canvas');c.width=c.height=N;const g=c.getContext('2d');let sd=11;const r=()=>(sd=(sd*16807)%2147483647)/2147483647;
+  for(let y=0;y<K;y++)for(let x=0;x<K;x++){const sx=r()*(im.width-S*1.1),sy=r()*(im.height-S*1.1);g.drawImage(im,sx,sy,S*1.05,S*1.05,x*S,y*S,S,S);if((x+y)%2){g.globalCompositeOperation='multiply';g.fillStyle=`rgb(${118+r()*14|0},${108+r()*12|0},${94+r()*10|0})`;g.fillRect(x*S,y*S,S,S);g.globalCompositeOperation='source-over';}
+   g.fillStyle=`rgba(${r()<.5?'255,246,228':'40,30,18'},${.04+r()*.07})`;g.fillRect(x*S,y*S,S,S);}
+  g.strokeStyle='rgba(46,36,24,.7)';g.lineWidth=3;for(let i=0;i<=K;i++){g.beginPath();g.moveTo(i*S,0);g.lineTo(i*S,N);g.stroke();g.beginPath();g.moveTo(0,i*S);g.lineTo(N,i*S);g.stroke();}
+  const old=m.lobbyFloorMat.map,t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;if(old){t.repeat.copy(old.repeat);t.offset.copy(old.offset);}m.lobbyFloorMat.map=t;}}
+ if(m.lobbyFloorMat){m.lobbyFloorMat.color.set(0xd8ccb6);m.lobbyFloorMat.roughness=.5;m.lobbyFloorMat.normalScale?.set(.5,.5);}
 }
 

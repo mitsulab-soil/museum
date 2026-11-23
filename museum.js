@@ -2059,7 +2059,7 @@ warm.then(() => { warmed = true; prog(100); enterWalk(); if (innerWidth >= 700) 
   requestAnimationFrame(() => requestAnimationFrame(() => { loader.hold = false; const cp = camera.position; loader.q.sort((a, b) => Math.hypot(a[0].center.x - cp.x, a[0].center.z - cp.z) - Math.hypot(b[0].center.x - cp.x, b[0].center.z - cp.z)); pump(); })); });
 // Architectural detail starts after an interactive frame; it does not join the boot gate.
 let architectureRequested=false;
-function requestArchitecture(){if(architectureRequested)return;architectureRequested=true;setTimeout(()=>{(window.requestIdleCallback||((f)=>setTimeout(f,24)))(()=>import('./museum-architecture.js?v=20261123-2').then(m=>m.install({scene,world,mats:{woodMat,darkWood,frameMat,brassMat,giltMat,stoneMat,marbleMat,lobbyFloorMat,parquet,T_PLASTER,T_STONE,T_WOOD},floors,bays,E,STEPS,PLAZA_Y})).catch(e=>console.warn('館の細部を読めませんでした',e)),{timeout:500});},1200);}
+function requestArchitecture(){if(architectureRequested)return;architectureRequested=true;setTimeout(()=>{(window.requestIdleCallback||((f)=>setTimeout(f,24)))(()=>import('./museum-architecture.js?v=20261123-3').then(m=>m.install({scene,world,mats:{woodMat,darkWood,frameMat,brassMat,giltMat,stoneMat,marbleMat,lobbyFloorMat,parquet,T_PLASTER,T_STONE,T_WOOD},floors,bays,E,STEPS,PLAZA_Y})).catch(e=>console.warn('館の細部を読めませんでした',e)),{timeout:500});},1200);}
 warm.then(()=>requestAnimationFrame(()=>requestAnimationFrame(requestArchitecture)));
 
 
